@@ -15,7 +15,8 @@ import {
   BookOpen,
   SlidersHorizontal,
   BookMarked,
-  ChevronsDown
+  ChevronsDown,
+  Palette
 } from 'lucide-react';
 import {
   ALL_SURAHS,
@@ -32,6 +33,13 @@ import {
   arabicToBengaliPronunciation
 } from '../data/quranData';
 import { IslamicStar } from '../components/quran/IslamicStar';
+import {
+  TajweedConfig,
+  getTajweedConfig,
+  saveTajweedConfig,
+  renderTajweedAyah
+} from '../utils/tajweedService';
+import { TajweedSettingModal } from '../components/quran/TajweedSettingModal';
 
 type QuranSubTab = 'SURAH' | 'JUZ' | 'BOOKMARK';
 
@@ -89,6 +97,22 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
     const val = !showTranslation;
     setShowTranslation(val);
     localStorage.setItem('ibadat_quran_show_translat', val.toString());
+  };
+
+  // Tajweed & Tashdeed System State
+  const [tajweedConfig, setTajweedConfig] = useState<TajweedConfig>(getTajweedConfig);
+  const [showTajweedModal, setShowTajweedModal] = useState<boolean>(false);
+
+  const toggleTajweed = () => {
+    const updated = { ...tajweedConfig, enabled: !tajweedConfig.enabled };
+    setTajweedConfig(updated);
+    saveTajweedConfig(updated);
+    onShowAlert?.(
+      updated.enabled
+        ? 'তাজবীদ কালার চালু করা হয়েছে।'
+        : 'তাজবীদ বন্ধ করা হয়েছে (সব হরফ সাদা)।',
+      true
+    );
   };
 
   // Filtered Surahs
@@ -246,94 +270,9 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
     };
   }, []);
 
-  // Helper for Tajweed highlighting as shown in user screenshots
-  const renderTajweedText = (text: string, surahNum: number, ayahNum: number): React.ReactNode => {
-    // Surah 114 (An-Nas) - Tajweed highlights from screenshot
-    if (surahNum === 114) {
-      if (ayahNum === 1) {
-        return (
-          <>
-            قُلْ أَعُوذُ بِرَبِّ <span className="text-[#f59e0b]">ٱلنَّ</span>اسِ
-          </>
-        );
-      }
-      if (ayahNum === 2) {
-        return (
-          <>
-            مَلِكِ <span className="text-[#f59e0b]">ٱلنَّ</span>اسِ
-          </>
-        );
-      }
-      if (ayahNum === 3) {
-        return (
-          <>
-            إِلَٰهِ <span className="text-[#f59e0b]">ٱلنَّ</span>اسِ
-          </>
-        );
-      }
-      if (ayahNum === 4) {
-        return (
-          <>
-            مِن <span className="text-[#f43f5e]">شَرِّ</span> ٱلْوَسْوَاسِ <span className="text-[#f59e0b]">ٱلْخَنَّ</span>اسِ
-          </>
-        );
-      }
-      if (ayahNum === 5) {
-        return (
-          <>
-            ٱلَّذِى يُوَسْوِسُ فِى صُدُورِ <span className="text-[#f59e0b]">ٱلنَّ</span>اسِ
-          </>
-        );
-      }
-      if (ayahNum === 6) {
-        return (
-          <>
-            مِنَ <span className="text-[#f59e0b]">ٱلْجِنَّ</span>ةِ وَ<span className="text-[#f59e0b]">ٱلنَّ</span>اسِ
-          </>
-        );
-      }
-    }
-
-    // Surah 113 (Al-Falaq) - Tajweed highlights from screenshot
-    if (surahNum === 113) {
-      if (ayahNum === 1) {
-        return (
-          <>
-            قُلْ أَعُوذُ بِرَبِّ ٱلْفَ<span className="text-[#22c55e]">لَقِ</span>
-          </>
-        );
-      }
-      if (ayahNum === 2) {
-        return (
-          <>
-            مِن <span className="text-[#f43f5e]">شَرِّ</span> مَا <span className="text-[#22c55e]">خَلَقَ</span>
-          </>
-        );
-      }
-      if (ayahNum === 3) {
-        return (
-          <>
-            وَمِن <span className="text-[#f43f5e]">شَرِّ</span> غَاسِقٍ إِذَا <span className="text-[#22c55e]">وَقَبَ</span>
-          </>
-        );
-      }
-      if (ayahNum === 4) {
-        return (
-          <>
-            وَمِن <span className="text-[#f43f5e]">شَرِّ</span> <span className="text-[#f59e0b]">ٱلنَّ</span>فَّٰثَٰتِ فِى <span className="text-[#22c55e]">ٱلْعُقَدِ</span>
-          </>
-        );
-      }
-      if (ayahNum === 5) {
-        return (
-          <>
-            وَمِن <span className="text-[#f43f5e]">شَرِّ</span> حَاسِدٍ إِذَا <span className="text-[#22c55e]">حَسَدَ</span>
-          </>
-        );
-      }
-    }
-
-    return text;
+  // Helper for Tajweed & Tashdeed highlighting
+  const renderAyahArabic = (text: string, surahNum: number, ayahNum: number): React.ReactNode => {
+    return renderTajweedAyah(text, tajweedConfig, surahNum, ayahNum);
   };
 
   // Surah Switcher List: ordered to match screenshot
@@ -440,7 +379,18 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
               <BookOpen className="w-5 h-5 stroke-[1.8]" />
             </button>
 
-            {/* 4. ⚙ Gear Settings icon */}
+            {/* 4. 🎨 Tajweed & Tashdeed Settings icon */}
+            <button
+              onClick={() => setShowTajweedModal(true)}
+              title="তাজবীদ ও তাশদীদ সেটিংস (Tajweed Setting)"
+              className={`p-1.5 rounded-lg hover:bg-[#14201a] transition ${
+                tajweedConfig.enabled ? 'text-[#f59e0b]' : 'text-slate-400'
+              }`}
+            >
+              <Palette className="w-5 h-5 stroke-[1.8]" />
+            </button>
+
+            {/* 5. ⚙ Gear Settings icon */}
             <button
               onClick={() => setShowSettingsModal(true)}
               title="পড়ার সেটিংস ও ফন্ট"
@@ -593,7 +543,7 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
                       }}
                       className="text-right text-white font-normal tracking-wide px-1 select-text flex-1"
                     >
-                      {renderTajweedText(ayah.textArabic, selectedSurah.number, ayah.numberInSurah)}
+                      {renderAyahArabic(ayah.textArabic, selectedSurah.number, ayah.numberInSurah)}
                       <span className="inline-flex items-center justify-center w-[22px] h-[22px] rounded-full border border-white/80 text-white text-[11px] font-sans mr-2 align-middle select-none shrink-0">
                         {toArabicNumber(ayah.numberInSurah)}
                       </span>
@@ -830,6 +780,42 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
                 </button>
               </div>
 
+              {/* Tajweed / Tashdeed Color Rules Toggle & Modal Link */}
+              <div className="pt-2 border-t border-[#1c2923] space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-medium text-slate-200">তাশদীদ ও তাজবীদ কালার</div>
+                    <div className="text-[10px] text-slate-400">হরফের উপর অটোমেটিক কালার হাইলাইট</div>
+                  </div>
+                  <button
+                    onClick={toggleTajweed}
+                    className={`w-11 h-6 rounded-full transition-colors relative ${
+                      tajweedConfig.enabled ? 'bg-amber-600' : 'bg-slate-700'
+                    }`}
+                  >
+                    <div
+                      className={`w-4 h-4 rounded-full bg-white transition-transform ${
+                        tajweedConfig.enabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setShowSettingsModal(false);
+                    setShowTajweedModal(true);
+                  }}
+                  className="w-full py-1.5 px-3 bg-[#17231c] hover:bg-[#1f2f26] border border-[#23352c] rounded-xl text-xs text-[#2dd4bf] font-medium flex items-center justify-between transition"
+                >
+                  <span className="flex items-center space-x-1.5">
+                    <Palette className="w-3.5 h-3.5 text-[#f59e0b]" />
+                    <span>তাজবীদ রুলস ও উদাহরণ দেখুন</span>
+                  </span>
+                  <span>→</span>
+                </button>
+              </div>
+
               <div className="pt-2">
                 <button
                   onClick={() => setShowSettingsModal(false)}
@@ -841,6 +827,15 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
             </div>
           </div>
         )}
+
+        {/* Dedicated Tajweed Setting Modal (Matches User Screenshot) */}
+        <TajweedSettingModal
+          isOpen={showTajweedModal}
+          onClose={() => setShowTajweedModal(false)}
+          config={tajweedConfig}
+          onConfigChange={(newCfg) => setTajweedConfig(newCfg)}
+          onShowAlert={onShowAlert}
+        />
       </div>
     );
   }
