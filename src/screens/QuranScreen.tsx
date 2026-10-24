@@ -3,7 +3,6 @@ import {
   Search,
   X,
   Volume2,
-  VolumeX,
   Play,
   Pause,
   Bookmark,
@@ -15,7 +14,8 @@ import {
   Settings as SettingsIcon,
   BookOpen,
   SlidersHorizontal,
-  BookMarked
+  BookMarked,
+  ChevronsDown
 } from 'lucide-react';
 import {
   ALL_SURAHS,
@@ -28,7 +28,8 @@ import {
   saveBookmark,
   removeBookmark,
   toBengaliNumber,
-  toArabicNumber
+  toArabicNumber,
+  arabicToBengaliPronunciation
 } from '../data/quranData';
 import { IslamicStar } from '../components/quran/IslamicStar';
 
@@ -55,14 +56,15 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
   const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Bookmarks
+  // Bookmarks & Ayah Interactions
   const [bookmarks, setBookmarks] = useState<QuranBookmark[]>(getBookmarks());
   const [copiedAyahNumber, setCopiedAyahNumber] = useState<number | null>(null);
+  const [activeAyahAction, setActiveAyahAction] = useState<number | null>(null);
 
   // Reading Settings
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
   const [arabicFontSize, setArabicFontSize] = useState<number>(() => {
-    return parseInt(localStorage.getItem('ibadat_quran_font_ar') || '28', 10);
+    return parseInt(localStorage.getItem('ibadat_quran_font_ar') || '21', 10);
   });
   const [showTransliteration, setShowTransliteration] = useState<boolean>(() => {
     return localStorage.getItem('ibadat_quran_show_trans') !== 'false';
@@ -208,7 +210,8 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
 
   // Copy Ayah
   const handleCopyAyah = (ayah: Ayah) => {
-    const text = `${ayah.textArabic}\n\n${ayah.transliterationBn ? ayah.transliterationBn + '\n\n' : ''}${ayah.translationBn}\n(সূরা ${selectedSurah?.banglaName}, আয়াত: ${ayah.numberInSurah})`;
+    const translit = ayah.transliterationBn || arabicToBengaliPronunciation(ayah.textArabic);
+    const text = `${ayah.textArabic}\n\n${translit ? translit + '\n\n' : ''}${ayah.translationBn}\n(সূরা ${selectedSurah?.banglaName}, আয়াত: ${ayah.numberInSurah})`;
     navigator.clipboard?.writeText(text);
     setCopiedAyahNumber(ayah.numberInSurah);
     setTimeout(() => setCopiedAyahNumber(null), 2000);
@@ -243,6 +246,114 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
     };
   }, []);
 
+  // Helper for Tajweed highlighting as shown in user screenshots
+  const renderTajweedText = (text: string, surahNum: number, ayahNum: number): React.ReactNode => {
+    // Surah 114 (An-Nas) - Tajweed highlights from screenshot
+    if (surahNum === 114) {
+      if (ayahNum === 1) {
+        return (
+          <>
+            قُلْ أَعُوذُ بِرَبِّ <span className="text-[#f59e0b]">ٱلنَّ</span>اسِ
+          </>
+        );
+      }
+      if (ayahNum === 2) {
+        return (
+          <>
+            مَلِكِ <span className="text-[#f59e0b]">ٱلنَّ</span>اسِ
+          </>
+        );
+      }
+      if (ayahNum === 3) {
+        return (
+          <>
+            إِلَٰهِ <span className="text-[#f59e0b]">ٱلنَّ</span>اسِ
+          </>
+        );
+      }
+      if (ayahNum === 4) {
+        return (
+          <>
+            مِن <span className="text-[#f43f5e]">شَرِّ</span> ٱلْوَسْوَاسِ <span className="text-[#f59e0b]">ٱلْخَنَّ</span>اسِ
+          </>
+        );
+      }
+      if (ayahNum === 5) {
+        return (
+          <>
+            ٱلَّذِى يُوَسْوِسُ فِى صُدُورِ <span className="text-[#f59e0b]">ٱلنَّ</span>اسِ
+          </>
+        );
+      }
+      if (ayahNum === 6) {
+        return (
+          <>
+            مِنَ <span className="text-[#f59e0b]">ٱلْجِنَّ</span>ةِ وَ<span className="text-[#f59e0b]">ٱلنَّ</span>اسِ
+          </>
+        );
+      }
+    }
+
+    // Surah 113 (Al-Falaq) - Tajweed highlights from screenshot
+    if (surahNum === 113) {
+      if (ayahNum === 1) {
+        return (
+          <>
+            قُلْ أَعُوذُ بِرَبِّ ٱلْفَ<span className="text-[#22c55e]">لَقِ</span>
+          </>
+        );
+      }
+      if (ayahNum === 2) {
+        return (
+          <>
+            مِن <span className="text-[#f43f5e]">شَرِّ</span> مَا <span className="text-[#22c55e]">خَلَقَ</span>
+          </>
+        );
+      }
+      if (ayahNum === 3) {
+        return (
+          <>
+            وَمِن <span className="text-[#f43f5e]">شَرِّ</span> غَاسِقٍ إِذَا <span className="text-[#22c55e]">وَقَبَ</span>
+          </>
+        );
+      }
+      if (ayahNum === 4) {
+        return (
+          <>
+            وَمِن <span className="text-[#f43f5e]">شَرِّ</span> <span className="text-[#f59e0b]">ٱلنَّ</span>فَّٰثَٰتِ فِى <span className="text-[#22c55e]">ٱلْعُقَدِ</span>
+          </>
+        );
+      }
+      if (ayahNum === 5) {
+        return (
+          <>
+            وَمِن <span className="text-[#f43f5e]">شَرِّ</span> حَاسِدٍ إِذَا <span className="text-[#22c55e]">حَسَدَ</span>
+          </>
+        );
+      }
+    }
+
+    return text;
+  };
+
+  // Surah Switcher List: ordered to match screenshot
+  const surahSwitcherList = useMemo(() => {
+    if (!selectedSurah) return [];
+    if (selectedSurah.number >= 111) {
+      return [114, 113, 112, 111, 110]
+        .map((num) => ALL_SURAHS.find((s) => s.number === num)!)
+        .filter(Boolean);
+    }
+    const start = Math.max(1, selectedSurah.number - 1);
+    const end = Math.min(114, selectedSurah.number + 3);
+    const list: SurahMeta[] = [];
+    for (let i = start; i <= end; i++) {
+      const found = ALL_SURAHS.find((s) => s.number === i);
+      if (found) list.push(found);
+    }
+    return list;
+  }, [selectedSurah]);
+
   // ----------------------------------------------------
   // VIEW: SURAH READER (Screen 2)
   // ----------------------------------------------------
@@ -253,82 +364,96 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
     const currentPage = ayahs[0]?.page || selectedSurah.startPage;
 
     return (
-      <div className="min-h-screen bg-[#0e1412] text-slate-100 flex flex-col font-sans -m-4">
-        {/* Top Header Bar */}
-        <header className="sticky top-0 z-30 bg-[#0e1412]/95 backdrop-blur-md border-b border-[#1c2923] px-3 py-2.5 flex items-center justify-between">
+      <div className="min-h-screen bg-[#070b09] text-slate-100 flex flex-col font-sans -m-4">
+        {/* Top Header Bar (100% matches Screenshot) */}
+        <header className="sticky top-0 z-30 bg-[#070b09]/95 backdrop-blur-md border-b border-[#15201a] px-3 py-2 flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <button
               onClick={() => {
                 stopAudio();
                 setSelectedSurah(null);
               }}
-              className="p-1.5 -ml-1 text-slate-300 hover:text-white rounded-lg active:bg-slate-800 transition"
+              className="p-1 -ml-1 text-slate-300 hover:text-white rounded-lg active:bg-slate-800 transition"
               aria-label="Back to Surah List"
             >
-              <ChevronLeft className="w-6 h-6 stroke-[2.2]" />
+              <ChevronLeft className="w-6 h-6 stroke-[2]" />
             </button>
 
             {/* Circular Green Quran Emblem */}
-            <div className="w-8 h-8 rounded-full bg-teal-800/80 border border-teal-500/50 flex items-center justify-center text-teal-200 shadow-xs">
+            <div className="w-8 h-8 rounded-full bg-[#1b5e43] border border-[#2e7d58] flex items-center justify-center text-emerald-100 shadow-xs shrink-0">
               <BookOpen className="w-4 h-4 stroke-[2]" />
             </div>
 
-            <div>
-              <div className="text-sm font-bold text-white tracking-wide">
+            <div className="leading-tight">
+              <div className="text-[13px] font-bold text-white tracking-wide">
                 Page {currentPage}
               </div>
-              <div className="text-[11px] text-[#2dd4bf] font-medium leading-tight">
+              <div className="text-[11px] text-slate-400 font-medium">
                 Juz {currentJuz}
               </div>
             </div>
           </div>
 
-          {/* Top Actions: Settings, Layout, Audio, Bookmark */}
-          <div className="flex items-center space-x-1 sm:space-x-2 text-slate-300">
+          {/* Top Actions: 4 Exact Icons as in Screenshot */}
+          <div className="flex items-center space-x-1 sm:space-x-1.5 text-slate-300">
+            {/* 1. C= icon (Transliteration display mode) */}
             <button
               onClick={() => {
-                if (ayahs.length > 0) {
-                  const targetAyah = ayahs.find(a => a.numberInSurah === (currentPlayingAyah || 1)) || ayahs[0];
-                  playAyahAudio(targetAyah);
-                }
+                toggleTransliteration();
+                onShowAlert?.(showTransliteration ? "উচ্চারণ বন্ধ করা হয়েছে।" : "উচ্চারণ চালু করা হয়েছে।", true);
               }}
-              title={isPlayingAudio ? "অডিও থামান" : "সম্পূর্ণ সূরা তিলাওয়াত শুনুন"}
-              className={`p-2 rounded-lg transition ${
-                isPlayingAudio ? 'text-[#2dd4bf] bg-teal-950/60' : 'hover:bg-slate-800 text-slate-300'
+              title="উচ্চারণ প্রদর্শন / বন্ধ"
+              className={`p-1.5 rounded-lg hover:bg-[#14201a] transition ${
+                showTransliteration ? 'text-[#2dd4bf]' : 'text-slate-400'
               }`}
             >
-              {isPlayingAudio ? (
-                <Volume2 className="w-5 h-5 animate-pulse text-[#2dd4bf]" />
-              ) : (
-                <VolumeX className="w-5 h-5 text-slate-400" />
-              )}
+              <svg viewBox="0 0 24 24" className="w-5 h-5 stroke-current fill-none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M 8 6 C 5 6, 3 8.5, 3 12 C 3 15.5, 5 18, 8 18" />
+                <line x1="12" y1="9" x2="20" y2="9" />
+                <line x1="12" y1="12" x2="20" y2="12" />
+                <line x1="12" y1="15" x2="18" y2="15" />
+              </svg>
             </button>
 
+            {/* 2. ︾ ChevronsDown icon (Scroll to bottom / jump) */}
             <button
-              onClick={() => handleToggleBookmark(selectedSurah.number, selectedSurah.banglaName)}
-              title="সূরা বুকমার্ক করুন"
-              className="p-2 rounded-lg hover:bg-slate-800 transition text-slate-300"
+              onClick={() => {
+                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+              }}
+              title="নিচে যান"
+              className="p-1.5 rounded-lg hover:bg-[#14201a] text-slate-300 transition"
             >
-              {isAyahBookmarked(selectedSurah.number) ? (
-                <BookmarkCheck className="w-5 h-5 text-[#2dd4bf]" />
-              ) : (
-                <Bookmark className="w-5 h-5 stroke-[1.8]" />
-              )}
+              <ChevronsDown className="w-5 h-5 stroke-[2]" />
             </button>
 
+            {/* 3. 📖 BookOpen icon (Translation display toggle) */}
+            <button
+              onClick={() => {
+                toggleTranslation();
+                onShowAlert?.(showTranslation ? "অর্থ বন্ধ করা হয়েছে।" : "অর্থ চালু করা হয়েছে।", true);
+              }}
+              title="অর্থ প্রদর্শন / বন্ধ"
+              className={`p-1.5 rounded-lg hover:bg-[#14201a] transition ${
+                showTranslation ? 'text-[#2dd4bf]' : 'text-slate-400'
+              }`}
+            >
+              <BookOpen className="w-5 h-5 stroke-[1.8]" />
+            </button>
+
+            {/* 4. ⚙ Gear Settings icon */}
             <button
               onClick={() => setShowSettingsModal(true)}
               title="পড়ার সেটিংস ও ফন্ট"
-              className="p-2 rounded-lg hover:bg-slate-800 transition text-slate-300"
+              className="p-1.5 rounded-lg hover:bg-[#14201a] text-slate-300 transition"
             >
               <SettingsIcon className="w-5 h-5 stroke-[1.8]" />
             </button>
           </div>
         </header>
 
-        {/* Horizontal Surah Switcher Bar */}
-        <div className="bg-[#121b17] border-b border-[#1c2923] overflow-x-auto no-scrollbar py-1.5 px-2 flex space-x-2">
-          {ALL_SURAHS.map((s) => {
+        {/* Horizontal Surah Switcher Bar (Ordered nearby Surahs) */}
+        <div className="bg-[#070b09] border-b border-[#141e18] overflow-x-auto no-scrollbar py-2 px-3 flex space-x-4 items-center">
+          {surahSwitcherList.map((s) => {
             const isCurrent = s.number === selectedSurah.number;
             return (
               <button
@@ -339,10 +464,10 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
                     setSelectedSurah(s);
                   }
                 }}
-                className={`px-3 py-1 text-xs whitespace-nowrap rounded-md font-medium transition-all ${
+                className={`text-xs whitespace-nowrap pb-1 transition-all select-none ${
                   isCurrent
-                    ? 'bg-[#1e2f26] text-[#2dd4bf] border-b-2 border-[#b58e57] shadow-xs font-semibold'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-[#16231d]'
+                    ? 'text-slate-100 font-semibold border-b-2 border-[#b58e57]'
+                    : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
                 {s.number}. {s.englishName}
@@ -352,64 +477,54 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
         </div>
 
         {/* Reader Body Content */}
-        <div className="flex-1 px-3 py-4 max-w-xl mx-auto w-full space-y-4 pb-28">
-          {/* Ornate Islamic Framed Banner (Matches Screenshot 2) */}
-          <div className="relative rounded-xl overflow-hidden border border-[#8f7347]/60 bg-gradient-to-b from-[#16221c] via-[#101915] to-[#0c1310] p-3 shadow-md">
-            {/* Vintage Islamic Arabesque Frame Border */}
-            <div className="absolute inset-0.5 border border-[#8f7347]/30 rounded-lg pointer-events-none" />
-            <div className="absolute top-1 left-1 w-2.5 h-2.5 border-t border-l border-[#c49b63]" />
-            <div className="absolute top-1 right-1 w-2.5 h-2.5 border-t border-r border-[#c49b63]" />
-            <div className="absolute bottom-1 left-1 w-2.5 h-2.5 border-b border-l border-[#c49b63]" />
-            <div className="absolute bottom-1 right-1 w-2.5 h-2.5 border-b border-r border-[#c49b63]" />
+        <div className="flex-1 px-3 py-3 max-w-xl mx-auto w-full space-y-3 pb-24">
+          {/* Ornate Islamic Framed Banner (100% matches Screenshot) */}
+          <div className="relative rounded-lg overflow-hidden border border-[#8f7347]/90 bg-[#121915] p-2 shadow-md">
+            {/* Arabesque filigree decorative border overlay */}
+            <div className="absolute inset-0.5 border border-[#8f7347]/40 rounded-md pointer-events-none" />
+            
+            {/* Corner scrollwork flourishes */}
+            <div className="absolute top-0.5 left-0.5 w-3 h-3 border-t-2 border-l-2 border-[#c49b63] rounded-tl-sm pointer-events-none" />
+            <div className="absolute top-0.5 right-0.5 w-3 h-3 border-t-2 border-r-2 border-[#c49b63] rounded-tr-sm pointer-events-none" />
+            <div className="absolute bottom-0.5 left-0.5 w-3 h-3 border-b-2 border-l-2 border-[#c49b63] rounded-bl-sm pointer-events-none" />
+            <div className="absolute bottom-0.5 right-0.5 w-3 h-3 border-b-2 border-r-2 border-[#c49b63] rounded-br-sm pointer-events-none" />
 
-            <div className="relative flex items-center justify-between">
-              {/* Left Box: Revelation Badge / Kaaba emblem */}
-              <div className="w-14 h-11 rounded-lg border border-[#8f7347]/50 bg-[#141e19] flex flex-col items-center justify-center text-[10px] text-[#c49b63] font-medium shadow-inner">
-                <span className="text-base leading-none">🕋</span>
-                <span className="text-[9px] uppercase tracking-wider text-slate-300">
-                  {selectedSurah.revelationType === 'MECCAN' ? 'মাক্কী' : 'মাদানী'}
-                </span>
+            <div className="relative flex items-center justify-between gap-1.5 sm:gap-3">
+              {/* Left Box: Kaaba emblem */}
+              <div className="w-[62px] h-[46px] rounded-t-full rounded-b-xl border border-[#8f7347]/80 bg-[#141f19] flex items-center justify-center text-xl shadow-inner shrink-0">
+                <span className="leading-none select-none">🕋</span>
               </div>
 
-              {/* Center Box: Arabic Calligraphy Title */}
-              <div className="text-center px-2 flex-1">
-                <h2
+              {/* Center Box: Arabic Calligraphy Title in Arched Frame */}
+              <div className="flex-1 flex items-center justify-center border-y border-[#8f7347]/50 bg-[#141f19]/80 rounded-2xl py-1 px-3 min-h-[46px] shadow-inner">
+                <div
                   style={{ fontFamily: "'Amiri', serif" }}
-                  className="text-2xl sm:text-3xl font-bold text-[#fef9c3] tracking-wide drop-shadow-sm"
+                  className="text-2xl sm:text-3xl font-bold text-white tracking-widest drop-shadow-sm select-none"
                 >
                   {selectedSurah.name}
-                </h2>
-                <div className="text-xs text-slate-300 font-medium mt-0.5">
-                  সূরা {selectedSurah.banglaName} • {selectedSurah.englishName}
                 </div>
               </div>
 
               {/* Right Box: Verse Count Badge */}
-              <div className="w-14 h-11 rounded-lg border border-[#8f7347]/50 bg-[#141e19] flex flex-col items-center justify-center text-center shadow-inner">
-                <span className="text-sm font-bold text-[#2dd4bf]">
+              <div className="w-[62px] h-[46px] rounded-t-full rounded-b-xl border border-[#8f7347]/80 bg-[#141f19] flex flex-col items-center justify-center text-center shadow-inner shrink-0 leading-tight">
+                <span className="text-xs font-bold text-slate-100">
                   {selectedSurah.numberOfAyahs}
                 </span>
-                <span className="text-[9px] uppercase text-slate-400 tracking-wider">
+                <span className="text-[9px] font-medium text-slate-300 tracking-wider">
                   Verses
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Bismillah Header (Except Surah 9 At-Tawbah & Surah 1 where it is Ayah 1) */}
+          {/* Bismillah Calligraphy (Only if not Tawbah and not Fatihah) */}
           {!isTawbah && !isFirstSurah && (
-            <div className="text-center py-4 border-b border-[#1c2923]/80">
+            <div className="text-center py-3 select-none">
               <div
                 style={{ fontFamily: "'Amiri', serif" }}
-                className="text-2xl text-[#f3f4f6] font-semibold tracking-wider leading-loose drop-shadow-sm select-none"
+                className="text-2xl sm:text-3xl font-semibold text-white tracking-widest drop-shadow-sm leading-relaxed"
               >
                 بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
-              </div>
-              <div className="text-xs text-[#2dd4bf] mt-1">
-                বিছমিল্লাহির রাহমানির রাহিম
-              </div>
-              <div className="text-[11px] text-slate-400 mt-0.5">
-                পরম করুণাময় অসীম দয়ালু আল্লাহর নামে শুরু করছি
               </div>
             </div>
           )}
@@ -439,63 +554,101 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
             </div>
           )}
 
-          {/* Ayah Cards List (Exact layout of Screenshot 2) */}
+          {/* Ayah List (Exact clean layout without bulky cards, identical to Screenshot) */}
           {!loadingAyahs &&
             ayahs.map((ayah) => {
               const isPlayingThisAyah = currentPlayingAyah === ayah.numberInSurah;
               const isBookmarked = isAyahBookmarked(selectedSurah.number, ayah.numberInSurah);
               const isCopied = copiedAyahNumber === ayah.numberInSurah;
+              const isActionActive = activeAyahAction === ayah.numberInSurah;
 
               return (
                 <div
                   key={ayah.numberInSurah}
                   id={`ayah-${ayah.numberInSurah}`}
-                  className={`rounded-xl border transition-all duration-200 p-3.5 space-y-3 ${
-                    isPlayingThisAyah
-                      ? 'bg-[#15231c] border-teal-500/60 shadow-lg ring-1 ring-teal-500/30'
-                      : 'bg-[#111915]/80 border-[#1a2620] hover:border-[#283b32]'
-                  }`}
+                  className="py-3.5 border-b border-[#141e17]/50 space-y-2 transition-colors"
                 >
-                  {/* Top Bar of Card: Star with Ayah number + Action buttons */}
-                  <div className="flex items-center justify-between pb-1">
-                    <IslamicStar
-                      number={ayah.numberInSurah}
-                      size={34}
-                      numberClassName="text-[#2dd4bf] text-[11px] font-bold"
-                    />
+                  {/* Top Row: Left 8-lobed Scalloped Rosette + Right Arabic Ayah Text */}
+                  <div className="flex items-start justify-between gap-3">
+                    {/* Left: 8-lobed Islamic Rosette with Ayah Number */}
+                    <div
+                      onClick={() => setActiveAyahAction(isActionActive ? null : ayah.numberInSurah)}
+                      className="cursor-pointer active:scale-95 transition"
+                      title="অপশন ও মেন্যু"
+                    >
+                      <IslamicStar
+                        number={ayah.numberInSurah}
+                        size={34}
+                        numberClassName="text-[#2dd4bf] text-[11px] font-semibold"
+                      />
+                    </div>
 
-                    <div className="flex items-center space-x-1">
-                      {/* Play Ayah Audio */}
+                    {/* Right: Arabic Text with Tajweed & Circle End-of-Verse marker */}
+                    <div
+                      dir="rtl"
+                      style={{
+                        fontFamily: "'Amiri', serif",
+                        fontSize: `${arabicFontSize}px`,
+                        lineHeight: '2.2'
+                      }}
+                      className="text-right text-white font-normal tracking-wide px-1 select-text flex-1"
+                    >
+                      {renderTajweedText(ayah.textArabic, selectedSurah.number, ayah.numberInSurah)}
+                      <span className="inline-flex items-center justify-center w-[22px] h-[22px] rounded-full border border-white/80 text-white text-[11px] font-sans mr-2 align-middle select-none shrink-0">
+                        {toArabicNumber(ayah.numberInSurah)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Bengali Transliteration (উচ্চারণ) - Vibrant Teal/Cyan */}
+                  {showTransliteration && (ayah.transliterationBn || ayah.textArabic) && (
+                    <div className="text-[#2dd4bf] text-[13px] leading-relaxed font-normal pt-0.5 pl-1">
+                      {ayah.transliterationBn || arabicToBengaliPronunciation(ayah.textArabic)}
+                    </div>
+                  )}
+
+                  {/* Bengali Translation (অনুবাদ) - Soft Silver/Ash Gray */}
+                  {showTranslation && ayah.translationBn && (
+                    <div className="text-[#cbd5e1] text-[13px] leading-relaxed font-normal pt-0.5 pl-1">
+                      {ayah.translationBn}
+                    </div>
+                  )}
+
+                  {/* Quick Context Action Bar on Rosette click */}
+                  {isActionActive && (
+                    <div className="flex items-center justify-end space-x-2 pt-2 mt-1 border-t border-[#1a2720]/80">
                       <button
                         onClick={() => playAyahAudio(ayah)}
-                        title="এই আয়াতের তিলাওয়াত শুনুন"
-                        className={`p-1.5 rounded-lg transition ${
-                          isPlayingThisAyah
-                            ? 'text-[#2dd4bf] bg-teal-900/60'
-                            : 'text-slate-400 hover:text-slate-200 hover:bg-[#1c2923]'
-                        }`}
+                        className="px-2.5 py-1 text-xs text-[#2dd4bf] bg-teal-950/70 border border-teal-800/50 rounded-lg flex items-center space-x-1"
                       >
-                        {isPlayingThisAyah ? (
-                          <Pause className="w-4 h-4 fill-current" />
+                        {isPlayingAudio && isPlayingThisAyah ? (
+                          <>
+                            <Pause className="w-3.5 h-3.5 fill-current" />
+                            <span>থামান</span>
+                          </>
                         ) : (
-                          <Play className="w-4 h-4" />
+                          <>
+                            <Play className="w-3.5 h-3.5" />
+                            <span>তিলাওয়াত</span>
+                          </>
                         )}
                       </button>
-
-                      {/* Copy Ayah */}
                       <button
                         onClick={() => handleCopyAyah(ayah)}
-                        title="আয়াত কপি করুন"
-                        className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-[#1c2923] rounded-lg transition"
+                        className="px-2.5 py-1 text-xs text-slate-300 bg-[#16231d] border border-slate-700/50 rounded-lg flex items-center space-x-1"
                       >
                         {isCopied ? (
-                          <Check className="w-4 h-4 text-emerald-400" />
+                          <>
+                            <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            <span className="text-emerald-400">কপি হয়েছে</span>
+                          </>
                         ) : (
-                          <Copy className="w-4 h-4" />
+                          <>
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>কপি</span>
+                          </>
                         )}
                       </button>
-
-                      {/* Bookmark Ayah */}
                       <button
                         onClick={() =>
                           handleToggleBookmark(
@@ -504,45 +657,20 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
                             ayah.numberInSurah
                           )
                         }
-                        title="এই আয়াত বুকমার্ক করুন"
-                        className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-[#1c2923] rounded-lg transition"
+                        className="px-2.5 py-1 text-xs text-slate-300 bg-[#16231d] border border-slate-700/50 rounded-lg flex items-center space-x-1"
                       >
                         {isBookmarked ? (
-                          <BookmarkCheck className="w-4 h-4 text-[#2dd4bf]" />
+                          <>
+                            <BookmarkCheck className="w-3.5 h-3.5 text-[#2dd4bf]" />
+                            <span className="text-[#2dd4bf]">সংরক্ষিত</span>
+                          </>
                         ) : (
-                          <Bookmark className="w-4 h-4" />
+                          <>
+                            <Bookmark className="w-3.5 h-3.5" />
+                            <span>বুকমার্ক</span>
+                          </>
                         )}
                       </button>
-                    </div>
-                  </div>
-
-                  {/* Arabic Ayah Text with Uthmani End-of-Ayah Marker (Screenshot 2) */}
-                  <div
-                    dir="rtl"
-                    style={{
-                      fontFamily: "'Amiri', serif",
-                      fontSize: `${arabicFontSize}px`,
-                      lineHeight: '2.1'
-                    }}
-                    className="text-right text-[#fbfaf8] font-normal tracking-wide px-1 select-text"
-                  >
-                    {ayah.textArabic}{' '}
-                    <span className="inline-flex items-center justify-center align-middle mx-1.5 text-amber-400/90 text-[0.8em] font-sans">
-                      ۝<span className="text-[0.65em] font-bold text-amber-300 -mr-0.5">{toArabicNumber(ayah.numberInSurah)}</span>
-                    </span>
-                  </div>
-
-                  {/* Bengali Transliteration (উচ্চারণ) - Teal/Cyan Color */}
-                  {showTransliteration && ayah.transliterationBn && (
-                    <div className="text-[#2dd4bf] text-[13px] leading-relaxed font-medium pt-1 px-0.5">
-                      {ayah.transliterationBn}
-                    </div>
-                  )}
-
-                  {/* Bengali Translation (অনুবাদ) - Crisp White/Light-gray */}
-                  {showTranslation && (
-                    <div className="text-slate-200 text-[13px] leading-relaxed font-normal pt-0.5 px-0.5">
-                      {ayah.translationBn}
                     </div>
                   )}
                 </div>
@@ -551,7 +679,7 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
 
           {/* Bottom Next/Prev Surah Navigator */}
           {!loadingAyahs && ayahs.length > 0 && (
-            <div className="flex items-center justify-between pt-6 pb-8 border-t border-[#1c2923]">
+            <div className="flex items-center justify-between pt-6 pb-8 border-t border-[#141e18]">
               <button
                 disabled={selectedSurah.number <= 1}
                 onClick={handlePrevSurah}

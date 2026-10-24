@@ -560,7 +560,6 @@ export const App: React.FC = () => {
     switch (activeTab) {
       case 'amalnama':
       case 'salah':
-      case 'quran':
       case 'dhikr': {
         if (amalnamaSubTab === 'salah') {
           const fardKeys = ["fajr", "zuhr", "asr", "maghrib", "isha"];

@@ -1,3 +1,6 @@
+import { convertEnTransliterationToBengali, arabicToBengaliPronunciation } from '../utils/quranTransliteration';
+export { convertEnTransliterationToBengali, arabicToBengaliPronunciation };
+
 export interface SurahMeta {
   number: number;
   name: string; // Arabic name
@@ -293,15 +296,15 @@ export const SURAH_FALAQ_AYAHS: Ayah[] = [
     numberInSurah: 1,
     numberInQuran: 6226,
     textArabic: "قُلْ أَعُوذُ بِرَبِّ ٱلْفَلَقِ",
-    transliterationBn: "ক্বুল আ'ঊযু বিরাব্বিল ফালাক্ব।",
-    translationBn: "বলুন, আমি আশ্রয় প্রার্থনা করছি প্রভাতের পালনকর্তার,",
+    transliterationBn: "কুল আ'ঊযুবিরাব্বিল ফালাক্ব",
+    translationBn: "বল, 'আমি আশ্রয় চাচ্ছি সকাল বেলার রব-এর,",
     audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6226.mp3"
   },
   {
     numberInSurah: 2,
     numberInQuran: 6227,
     textArabic: "مِن شَرِّ مَا خَلَقَ",
-    transliterationBn: "মিন শাররি মা খালাক্ব।",
+    transliterationBn: "মিন শাররি মা-খালাক্ব।",
     translationBn: "তিনি যা সৃষ্টি করেছেন তার অনিষ্ট হতে,",
     audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6227.mp3"
   },
@@ -309,24 +312,24 @@ export const SURAH_FALAQ_AYAHS: Ayah[] = [
     numberInSurah: 3,
     numberInQuran: 6228,
     textArabic: "وَمِن شَرِّ غَاسِقٍ إِذَا وَقَبَ",
-    transliterationBn: "ওয়া মিন শাররি গা-সিক্বিন ইযা ওয়াক্বাব।",
-    translationBn: "অন্ধকার রাত্রির অনিষ্ট হতে, যখন তা সমাগত হয়,",
+    transliterationBn: "ওয়া মিন শাররি গা-ছিকিন ইযা-ওয়াক্বাব।",
+    translationBn: "আর অন্ধকার রাতের অনিষ্ট হতে যখন তা আচ্ছন্ন হয়ে যায়।",
     audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6228.mp3"
   },
   {
     numberInSurah: 4,
     numberInQuran: 6229,
     textArabic: "وَمِن شَرِّ ٱلنَّفَّٰثَٰتِ فِى ٱلْعُقَدِ",
-    transliterationBn: "ওয়া মিন শাররিন নাফফা-সা-তি ফিল 'উক্বাফ।",
-    translationBn: "গ্রন্থিতে ফুৎকারকারিণী (যাদুকরীদের) অনিষ্ট হতে,",
+    transliterationBn: "ওয়া মিন শাররিন নাফফা-ছা-তি ফিল 'উক্বাদ।",
+    translationBn: "এবং (জাদু করার উদ্দেশ্যে) গিরায় ফুৎকারকারিণীদের অনিষ্ট হতে,",
     audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6229.mp3"
   },
   {
     numberInSurah: 5,
     numberInQuran: 6230,
     textArabic: "وَمِن شَرِّ حَاسِدٍ إِذَا حَسَدَ",
-    transliterationBn: "ওয়া মিন শাররি হা-সিদিন ইযা হাসাদ।",
-    translationBn: "এবং হিংসুকের অনিষ্ট হতে যখন সে হিংসা করে।",
+    transliterationBn: "ওয়া মিন শাররি হা-ছিদিন ইযা-হাছাদ।",
+    translationBn: "এবং হিংসুকের অনিষ্ট হতে, যখন সে হিংসা করে।",
     audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6230.mp3"
   }
 ];
@@ -337,15 +340,15 @@ export const SURAH_NAS_AYAHS: Ayah[] = [
     numberInSurah: 1,
     numberInQuran: 6231,
     textArabic: "قُلْ أَعُوذُ بِرَبِّ ٱلنَّاسِ",
-    transliterationBn: "ক্বুল আ'ঊযু বিরাব্বিন না-স।",
-    translationBn: "বলুন, আমি আশ্রয় প্রার্থনা করছি মানুষের প্রতিপালকের,",
+    transliterationBn: "কুল আ'ঊযুবিরাব্বিন্না-ছ,",
+    translationBn: "বল, 'আমি আশ্রয় চাচ্ছি মানুষের প্রতিপালকের,",
     audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6231.mp3"
   },
   {
     numberInSurah: 2,
     numberInQuran: 6232,
     textArabic: "مَلِكِ ٱلنَّاسِ",
-    transliterationBn: "মালিকিন না-স।",
+    transliterationBn: "মালিকিন্না-ছ,",
     translationBn: "মানুষের অধিপতির,",
     audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6232.mp3"
   },
@@ -353,33 +356,213 @@ export const SURAH_NAS_AYAHS: Ayah[] = [
     numberInSurah: 3,
     numberInQuran: 6233,
     textArabic: "إِلَٰهِ ٱلنَّاسِ",
-    transliterationBn: "ইলা-হিন না-স।",
-    translationBn: "মানুষের প্রকৃত উপাস্যের,",
+    transliterationBn: "ইলা-হিন্না-ছ।",
+    translationBn: "মানুষের প্রকৃত ইলাহর,",
     audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6233.mp3"
   },
   {
     numberInSurah: 4,
     numberInQuran: 6234,
     textArabic: "مِن شَرِّ ٱلْوَسْوَاسِ ٱلْخَنَّاسِ",
-    transliterationBn: "মিন শাররিল ওয়াসওয়াসিল খান্না-স।",
-    translationBn: "আত্মগোপনকারী কুমন্ত্রণাদাতার অনিষ্ট থেকে,",
+    transliterationBn: "মিন শাররিল ওয়াছ ওয়া-ছিল খান্না-ছ।",
+    translationBn: "যে নিজেকে লুকিয়ে রেখে বার বার এসে কুমন্ত্রণা দেয় তার অনিষ্ট হতে,",
     audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6234.mp3"
   },
   {
     numberInSurah: 5,
     numberInQuran: 6235,
     textArabic: "ٱلَّذِى يُوَسْوِسُ فِى صُدُورِ ٱلنَّاسِ",
-    transliterationBn: "আল্লাযী ইউওয়াসউিসু ফী সুদূরিন না-স।",
-    translationBn: "যে মানুষের অন্তরে কুমন্ত্রণা দেয়,",
+    transliterationBn: "আল্লাযী ইউওয়াছবিছুফী ছুদূরিন্নাছ-।",
+    translationBn: "যে কুমন্ত্রণা দেয় মানুষের অন্তরে",
     audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6235.mp3"
   },
   {
     numberInSurah: 6,
     numberInQuran: 6236,
     textArabic: "مِنَ ٱلْجِنَّةِ وَٱلنَّاسِ",
-    transliterationBn: "মিনাল জিন্নাতি ওয়ান না-স।",
-    translationBn: "জ্বিনদের মধ্য থেকে অথবা মানুষের মধ্য থেকে।",
+    transliterationBn: "মিনাল জিন্নাতি ওয়ান্না-ছ।",
+    translationBn: "(এই কুমন্ত্রণাদাতা হচ্ছে) জ্বিনের মধ্য হতে এবং মানুষের মধ্য হতে।",
     audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6236.mp3"
+  }
+];
+
+// Pre-bundled Surah 108 (Al-Kawthar)
+export const SURAH_KAWTHAR_AYAHS: Ayah[] = [
+  {
+    numberInSurah: 1,
+    numberInQuran: 6205,
+    textArabic: "إِنَّا أَعْطَيْنَاكَ الْكَوْثَرَ",
+    transliterationBn: "ইন্না- আ'তাইনা-কাল কাওছার।",
+    translationBn: "নিশ্চয় আমি তোমাকে কাওছার দান করেছি।",
+    audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6205.mp3"
+  },
+  {
+    numberInSurah: 2,
+    numberInQuran: 6206,
+    textArabic: "فَصَلِّ لِرَبِّكَ وَانْحَرْ",
+    transliterationBn: "ফাছাল্লি লিরাব্বিকা ওয়ানহার।",
+    translationBn: "অতএব তোমার প্রতিপালকের উদ্দেশ্যে সালাত আদায় কর এবং কুরবানী কর।",
+    audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6206.mp3"
+  },
+  {
+    numberInSurah: 3,
+    numberInQuran: 6207,
+    textArabic: "إِنَّ شَانِئَكَ هُوَ الْأَبْتَرُ",
+    transliterationBn: "ইন্না শা-নিআকা হুওয়াল আবতার।",
+    translationBn: "নিশ্চয় তোমার প্রতি বিদ্বেষ পোষণকারীই তো নির্বংশ।",
+    audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6207.mp3"
+  }
+];
+
+// Pre-bundled Surah 109 (Al-Kafirun)
+export const SURAH_KAFIRUN_AYAHS: Ayah[] = [
+  {
+    numberInSurah: 1,
+    numberInQuran: 6208,
+    textArabic: "قُلْ يَا أَيُّهَا الْكَافِرُونَ",
+    transliterationBn: "ক্বুল ইয়া- আইয়ুহাল কা-ফিরূন।",
+    translationBn: "বল, ‘হে কাফিররা!’",
+    audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6208.mp3"
+  },
+  {
+    numberInSurah: 2,
+    numberInQuran: 6209,
+    textArabic: "لَا أَعْبُدُ مَا تَعْبُدُونَ",
+    transliterationBn: "লা- আ’বুদু মা- তা’বুদূন।",
+    translationBn: "‘আমি তার ইবাদাত করি না যার ইবাদাত তোমরা কর,’",
+    audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6209.mp3"
+  },
+  {
+    numberInSurah: 3,
+    numberInQuran: 6210,
+    textArabic: "وَلَا أَنتُمْ عَابِدُونَ مَا أَعْبُدُ",
+    transliterationBn: "ওয়ালা- আনতুম ‘আ-বিদূনা মা- আ’বুদ।",
+    translationBn: "‘এবং তোমরাও তার ইবাদাতকারী নও যার ইবাদাত আমি করি,’",
+    audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6210.mp3"
+  },
+  {
+    numberInSurah: 4,
+    numberInQuran: 6211,
+    textArabic: "وَلَا أَنَا عَابِدٌ مَّا عَبَدتُّمْ",
+    transliterationBn: "ওয়ালা- আনা ‘আ-বিদুম মা- ‘আবাদতুম।",
+    translationBn: "‘এবং আমি তার ইবাদাতকারী হব না যার ইবাদাত তোমরা করে আসছ,’",
+    audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6211.mp3"
+  },
+  {
+    numberInSurah: 5,
+    numberInQuran: 6212,
+    textArabic: "وَلَا أَنتُمْ عَابِدُونَ مَا أَعْبُدُ",
+    transliterationBn: "ওয়ালা- আনতুম ‘আ-বিদূনা মা- আ’বুদ।",
+    translationBn: "‘এবং তোমরাও তার ইবাদাতকারী হবে না যার ইবাদাত আমি করি।’",
+    audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6212.mp3"
+  },
+  {
+    numberInSurah: 6,
+    numberInQuran: 6213,
+    textArabic: "لَكُمْ دِينُكُمْ وَلِيَ دِينِ",
+    transliterationBn: "লাকুম দীনুকুম ওয়ালিয়া দীন।",
+    translationBn: "‘তোমাদের জন্য তোমাদের দীন আর আমার জন্য আমার দীন।’",
+    audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6213.mp3"
+  }
+];
+
+// Pre-bundled Surah 110 (An-Nasr)
+export const SURAH_NASR_AYAHS: Ayah[] = [
+  {
+    numberInSurah: 1,
+    numberInQuran: 6214,
+    textArabic: "إِذَا جَاءَ نَصْرُ اللَّهِ وَالْفَتْحُ",
+    transliterationBn: "ইযা- জা-আ নাসরুল্লাহি ওয়াল ফাতহু।",
+    translationBn: "যখন আল্লাহর সাহায্য ও বিজয় আসবে,",
+    audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6214.mp3"
+  },
+  {
+    numberInSurah: 2,
+    numberInQuran: 6215,
+    textArabic: "وَرَأَيْتَ النَّاسَ يَدْخُلُونَ فِي دِينِ اللَّهِ أَفْوَاجًا",
+    transliterationBn: "ওয়া রাআইতান না-ছা ইয়াদখুলূনা ফী দীনিল্লাহি আফওয়া-জা-।",
+    translationBn: "এবং তুমি মানুষকে দলে দলে আল্লাহর দীনে প্রবেশ করতে দেখবে,",
+    audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6215.mp3"
+  },
+  {
+    numberInSurah: 3,
+    numberInQuran: 6216,
+    textArabic: "فَسَبِّحْ بِحَمْدِ رَبِّكَ وَاسْتَغْفِرْهُ ۚ إِنَّهُ كَانَ تَوَّابًا",
+    transliterationBn: "ফাসাব্বিহ বিহামদি রাব্বিকা ওয়াসতাগফিরহু, ইন্নাহু কা-না তাওওয়া-বা-।",
+    translationBn: "তখন তুমি তোমার প্রতিপালকের প্রশংসার সাথে তাঁর পবিত্রতা বর্ণনা কর এবং তাঁর নিকট ক্ষমা প্রার্থনা কর; নিশ্চয় তিনি অধিক তাওবাহ কবূলকারী।",
+    audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6216.mp3"
+  }
+];
+
+// Pre-bundled Surah 111 (Al-Masad)
+export const SURAH_MASAD_AYAHS: Ayah[] = [
+  {
+    numberInSurah: 1,
+    numberInQuran: 6217,
+    textArabic: "تَبَّتْ يَدَا أَبِي لَهَبٍ وَتَبَّ",
+    transliterationBn: "তাব্বাত ইয়াদা- আবী লাহাবিঁও ওয়াতাব্ব।",
+    translationBn: "ধ্বংস হোক আবু লাহাবের দু’হাত এবং ধ্বংস হোক সে নিজেও।",
+    audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6217.mp3"
+  },
+  {
+    numberInSurah: 2,
+    numberInQuran: 6218,
+    textArabic: "مَا أَغْنَىٰ عَنْهُ مَالُهُ وَمَا كَسَبَ",
+    transliterationBn: "মা- আগনা- ‘আনহু মা-লুহু ওয়ামা- কাসাব।",
+    translationBn: "তার ধন-সম্পদ ও যা সে অর্জন করেছে তা তার কোন উপকারে আসেনি।",
+    audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6218.mp3"
+  },
+  {
+    numberInSurah: 3,
+    numberInQuran: 6219,
+    textArabic: "سَيَصْلَىٰ نَارًا ذَاتَ لَهَبٍ",
+    transliterationBn: "সাইয়াসলা- না-রান যা-তা লাহাব।",
+    translationBn: "শীঘ্রই সে প্রবেশ করবে লেলিহান আগুনে,",
+    audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6219.mp3"
+  },
+  {
+    numberInSurah: 4,
+    numberInQuran: 6220,
+    textArabic: "وَامْرَأَتُهُ حَمَّالَةَ الْحَطَبِ",
+    transliterationBn: "ওয়ামরাআতুহু হাম্মা-লাতাল হাতাব।",
+    translationBn: "এবং তার স্ত্রীও, যে কাঠ বহনকারিণী;",
+    audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6220.mp3"
+  },
+  {
+    numberInSurah: 5,
+    numberInQuran: 6221,
+    textArabic: "فِي جِيدِهَا حَبْلٌ مِّن مَّسَدٍ",
+    transliterationBn: "ফী জীদিহা- হাবলুম মিম মাসাদ।",
+    translationBn: "তার গলদেশে পাকানো রশি।",
+    audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6221.mp3"
+  }
+];
+
+// Pre-bundled Surah 103 (Al-'Asr)
+export const SURAH_ASR_AYAHS: Ayah[] = [
+  {
+    numberInSurah: 1,
+    numberInQuran: 6177,
+    textArabic: "وَالْعَصْرِ",
+    transliterationBn: "ওয়াল ‘আস্র।",
+    translationBn: "সময়ের শপথ,",
+    audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6177.mp3"
+  },
+  {
+    numberInSurah: 2,
+    numberInQuran: 6178,
+    textArabic: "إِنَّ الْإِنسَانَ لَفِي خُسْرٍ",
+    transliterationBn: "ইন্নাল ইনসা-না লাফী খুস্র্।",
+    translationBn: "নিশ্চয় মানুষ ক্ষতির মধ্যে নিমজ্জিত।",
+    audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6178.mp3"
+  },
+  {
+    numberInSurah: 3,
+    numberInQuran: 6179,
+    textArabic: "إِلَّا الَّذِينَ آمَنُوا وَعَمِلُوا الصَّالِحَاتِ وَتَوَاصَوْا بِالْحَقِّ وَتَوَاصَوْا بِالصَّبْرِ",
+    transliterationBn: "ইল্লাল্লাযীনা আ-মানূ ওয়া ‘আমিলুস স-লিহা-তি ওয়া তাওয়া-সাও বিল হাক্বক্বি ওয়া তাওয়া-সাও বিস সাব্র্।",
+    translationBn: "তবে তারা ছাড়া যারা ঈমান এনেছে এবং সৎকর্ম করেছে আর একে অপরকে হকের উপদেশ দিয়েছে ও একে অপরকে ধৈর্যের উপদেশ দিয়েছে।",
+    audioUrl: "https://cdn.islamic.network/quran/audio/128/ar.alafasy/6179.mp3"
   }
 ];
 
@@ -395,30 +578,37 @@ export const toArabicNumber = (num: number | string): string => {
   return num.toString().replace(/\d/g, (d) => arDigits[parseInt(d, 10)]);
 };
 
-// Fetch full Surah from API with localStorage caching
+// Fetch full Surah from API with guaranteed Bengali transliteration and caching
 export const fetchSurahAyahs = async (surahNumber: number): Promise<Ayah[]> => {
-  // Check static pre-bundled first for instant 0ms load
+  // Check static pre-bundled first for instant 0ms offline load
   if (surahNumber === 1) return SURAH_FAT_IHAH_AYAHS;
+  if (surahNumber === 103) return SURAH_ASR_AYAHS;
+  if (surahNumber === 108) return SURAH_KAWTHAR_AYAHS;
+  if (surahNumber === 109) return SURAH_KAFIRUN_AYAHS;
+  if (surahNumber === 110) return SURAH_NASR_AYAHS;
+  if (surahNumber === 111) return SURAH_MASAD_AYAHS;
   if (surahNumber === 112) return SURAH_IKHLAS_AYAHS;
   if (surahNumber === 113) return SURAH_FALAQ_AYAHS;
   if (surahNumber === 114) return SURAH_NAS_AYAHS;
 
-  const cacheKey = `ibadat_quran_surah_v2_${surahNumber}`;
+  const cacheKey = `ibadat_quran_surah_v5_${surahNumber}`;
   const cached = localStorage.getItem(cacheKey);
   if (cached) {
     try {
       const parsed = JSON.parse(cached);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.transliterationBn) {
         return parsed;
       }
     } catch {
-      // Continue to fetch
+      // Continue to fetch fresh
     }
   }
 
   try {
-    // AlQuran Cloud API provides Uthmani Arabic and authentic Bengali translation (bn.bengali - Muhiuddin Khan)
-    const response = await fetch(`https://api.alquran.cloud/v1/surah/${surahNumber}/editions/quran-uthmani,bn.bengali`);
+    // AlQuran Cloud API: fetch Uthmani Arabic, Bengali Translation (bn.bengali) and English Transliteration (en.transliteration)
+    const response = await fetch(
+      `https://api.alquran.cloud/v1/surah/${surahNumber}/editions/quran-uthmani,bn.bengali,en.transliteration`
+    );
     if (!response.ok) {
       throw new Error(`Failed to fetch surah ${surahNumber}`);
     }
@@ -429,14 +619,26 @@ export const fetchSurahAyahs = async (surahNumber: number): Promise<Ayah[]> => {
 
     const arabicEdition = json.data[0];
     const bengaliEdition = json.data[1];
+    const translitEdition = json.data[2] || null;
 
     const ayahs: Ayah[] = arabicEdition.ayahs.map((arAyah: any, idx: number) => {
       const bnAyah = bengaliEdition.ayahs[idx] || {};
+      const enTransAyah = translitEdition?.ayahs ? translitEdition.ayahs[idx] : null;
+
       let arabicText = arAyah.text || '';
       // Strip Bismillah if it's attached to verse 1 (except Surah Al-Fatihah)
       if (surahNumber !== 1 && surahNumber !== 9 && idx === 0) {
         const bismillahRegex = /^بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ\s*/;
         arabicText = arabicText.replace(bismillahRegex, '').trim() || arabicText;
+      }
+
+      // Convert phonetic English transliteration to Bengali or fallback to Arabic pronunciation
+      let transliteration = '';
+      if (enTransAyah?.text) {
+        transliteration = convertEnTransliterationToBengali(enTransAyah.text);
+      }
+      if (!transliteration) {
+        transliteration = arabicToBengaliPronunciation(arabicText);
       }
 
       const globalNumber = arAyah.number;
@@ -445,7 +647,7 @@ export const fetchSurahAyahs = async (surahNumber: number): Promise<Ayah[]> => {
         numberInSurah: arAyah.numberInSurah,
         numberInQuran: globalNumber,
         textArabic: arabicText,
-        transliterationBn: '', // Will be rendered or fallback
+        transliterationBn: transliteration,
         translationBn: bnAyah.text || '',
         audioUrl: `https://cdn.islamic.network/quran/audio/128/ar.alafasy/${globalNumber}.mp3`,
         juz: arAyah.juz,
@@ -462,7 +664,6 @@ export const fetchSurahAyahs = async (surahNumber: number): Promise<Ayah[]> => {
     return ayahs;
   } catch (err) {
     console.warn(`Error fetching Surah ${surahNumber}:`, err);
-    // Fallback if network offline
     return [];
   }
 };
