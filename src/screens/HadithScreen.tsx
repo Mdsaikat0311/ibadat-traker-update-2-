@@ -38,8 +38,8 @@ export const HadithScreen: React.FC<HadithScreenProps> = ({ onShowAlert }) => {
   });
   const [showArabic, setShowArabic] = useState(true);
 
-  // View Mode: 'all' (সব হাদিস) or 'chapter' (অধ্যায়ভিত্তিক)
-  const [viewMode, setViewMode] = useState<'all' | 'chapter'>('chapter');
+  // View Mode: 'all' (সব হাদিস একসাথে) or 'chapter' (অধ্যায়ভিত্তিক) - Default is ALWAYS 'all'
+  const [viewMode, setViewMode] = useState<'all' | 'chapter'>('all');
   const [showChapterModal, setShowChapterModal] = useState<boolean>(false);
   const [chapterSearch, setChapterSearch] = useState<string>('');
   const [loadedSectionsInAllMode, setLoadedSectionsInAllMode] = useState<number[]>([1]);
@@ -65,28 +65,6 @@ export const HadithScreen: React.FC<HadithScreenProps> = ({ onShowAlert }) => {
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Load sections and initial hadiths when a book is selected
-  useEffect(() => {
-    if (!selectedBook) {
-      setSections([]);
-      setActiveHadiths([]);
-      setSearchedSingleHadith(null);
-      setViewMode('chapter');
-      setShowChapterModal(false);
-      return;
-    }
-
-    const bookId = selectedBook.id;
-    const bookSecs = HadithApiService.getBookSections(bookId);
-    setSections(bookSecs);
-
-    const initialSec = bookSecs.length > 0 ? bookSecs[0].sectionNumber : 1;
-    setSelectedSectionNum(initialSec);
-    setLoadedSectionsInAllMode([initialSec]);
-    setViewMode('chapter');
-    loadSectionHadiths(bookId, initialSec, selectedBook.title);
-  }, [selectedBook]);
-
   const loadSectionHadiths = useCallback(
     async (bookId: string, secNum: number, bookTitle: string) => {
       setIsLoading(true);
@@ -109,6 +87,40 @@ export const HadithScreen: React.FC<HadithScreenProps> = ({ onShowAlert }) => {
     },
     [selectedBook]
   );
+
+  // Load sections and initial hadiths when a book is selected - ALWAYS defaults to all hadiths list
+  useEffect(() => {
+    if (!selectedBook) {
+      setSections([]);
+      setActiveHadiths([]);
+      setSearchedSingleHadith(null);
+      setViewMode('all');
+      setShowChapterModal(false);
+      return;
+    }
+
+    const bookId = selectedBook.id;
+    const bookSecs = HadithApiService.getBookSections(bookId);
+    setSections(bookSecs);
+
+    const initialSec = bookSecs.length > 0 ? bookSecs[0].sectionNumber : 1;
+    setSelectedSectionNum(initialSec);
+    setLoadedSectionsInAllMode([initialSec]);
+    
+    // Always default to 'all' (সব হাদিস একসাথে দেখার তালিকা)
+    setViewMode('all');
+    setSearchedSingleHadith(null);
+
+    // If bundled collection, load all hadiths immediately!
+    const bundledAll = HadithApiService.getAllBundledHadiths(bookId);
+    if (bundledAll && bundledAll.length > 0) {
+      setActiveHadiths(bundledAll);
+      setIsLoading(false);
+    } else {
+      // For large collections (Bukhari, Muslim, Abu Dawood, etc.), load initial section in 'all' view
+      loadSectionHadiths(bookId, initialSec, selectedBook.title);
+    }
+  }, [selectedBook, loadSectionHadiths]);
 
   const handleSelectChapter = (secNum: number) => {
     if (!selectedBook) return;
@@ -470,45 +482,72 @@ export const HadithScreen: React.FC<HadithScreenProps> = ({ onShowAlert }) => {
       {/* Book Detail & Interactive Hadith Browser */}
       {selectedBook && !onlyBookmarks && (
         <div className="mt-3 space-y-3">
-          {/* Action Row: [সব হাদিস] Button and [অধ্যায় নির্বাচন টগল] */}
+          {/* Action Row: [সব হাদিস একসাথে] Button (Always selected by default) and [অধ্যায় ফিল্টার] */}
           <div className="flex items-center gap-2">
-            {/* সব হাদিস বাটন */}
+            {/* সব হাদিস বাটন (Always Default Selected) */}
             <button
               type="button"
               onClick={handleSwitchToAllHadiths}
-              className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border cursor-pointer ${
+              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border cursor-pointer ${
                 viewMode === 'all' && !searchedSingleHadith
-                  ? 'bg-[#183925] border-[#2e6d46] text-[#4ade80] shadow-sm'
+                  ? 'bg-[#183925] border-[#2e6d46] text-[#4ade80] shadow-sm ring-1 ring-[#4ade80]/40'
                   : 'bg-[#161d18] border-[#222e25] text-[#8ea496] hover:text-[#d3ded7] hover:border-[#2b3c30]'
               }`}
             >
-              <BookOpen className="w-4 h-4" />
-              <span>সব হাদিস</span>
+              <BookOpen className="w-4 h-4 text-[#4ade80]" />
+              <span>সব হাদিস একসাথে</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-semibold ${
+                viewMode === 'all' && !searchedSingleHadith
+                  ? 'bg-[#214d33] text-[#4ade80] border border-[#2b6543]'
+                  : 'bg-[#1c261f] text-[#81998a]'
+              }`}>
+                {activeHadiths.length > 0 ? `${activeHadiths.length}টি` : selectedBook.totalHadithLabel}
+              </span>
             </button>
 
-            {/* অধ্যায় নির্বাচন টগল বাটন */}
+            {/* অধ্যায় ফিল্টার টগল বাটন */}
             {sections.length > 1 && (
               <button
                 type="button"
                 onClick={() => setShowChapterModal(true)}
-                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-between border cursor-pointer ${
+                className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-between border cursor-pointer ${
                   viewMode === 'chapter' && !searchedSingleHadith
-                    ? 'bg-[#183925] border-[#2e6d46] text-[#4ade80] shadow-sm'
+                    ? 'bg-[#183925] border-[#2e6d46] text-[#4ade80] shadow-sm ring-1 ring-[#4ade80]/40'
                     : 'bg-[#161d18] border-[#222e25] text-[#8ea496] hover:text-[#d3ded7] hover:border-[#2b3c30]'
                 }`}
               >
                 <div className="flex items-center gap-1.5 truncate">
-                  <Layers className="w-4 h-4 shrink-0" />
+                  <Layers className="w-4 h-4 shrink-0 text-[#8ea496]" />
                   <span className="truncate">
                     {viewMode === 'chapter' && currentSection
                       ? currentSection.bengaliTitle
-                      : `অধ্যায় নির্বাচন (${sections.length})`}
+                      : `অধ্যায় ফিল্টার (${sections.length})`}
                   </span>
                 </div>
                 <ChevronDown className="w-4 h-4 shrink-0 ml-1 opacity-80" />
               </button>
             )}
           </div>
+
+          {/* Active Chapter Filter Notice (if user manually switched to chapter view) */}
+          {viewMode === 'chapter' && currentSection && !searchedSingleHadith && (
+            <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#142319] border border-[#234b33] text-xs">
+              <div className="flex items-center gap-2 truncate">
+                <span className="w-2 h-2 rounded-full bg-[#4ade80] shrink-0"></span>
+                <span className="text-[#8ea496] truncate">
+                  ফিল্টার: <span className="text-[#4ade80] font-bold">{currentSection.bengaliTitle}</span>
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleSwitchToAllHadiths}
+                className="text-[11px] font-bold text-[#4ade80] hover:underline shrink-0 ml-2 cursor-pointer flex items-center gap-1"
+              >
+                <span>সব হাদিস একসাথে দেখুন</span>
+                <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
+          )}
 
           {/* Quick Jump to Hadith Number bar */}
           <form
@@ -758,6 +797,40 @@ export const HadithScreen: React.FC<HadithScreenProps> = ({ onShowAlert }) => {
 
             {/* Chapters List */}
             <div className="flex-1 overflow-y-auto p-2 divide-y divide-[#1e2a21]">
+              {/* Option to show All Hadiths */}
+              <div
+                onClick={() => {
+                  handleSwitchToAllHadiths();
+                  setShowChapterModal(false);
+                }}
+                className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition mb-2 border ${
+                  viewMode === 'all'
+                    ? 'bg-[#183925] border-[#2e6d46] text-[#4ade80]'
+                    : 'bg-[#141b16] border-[#202b23] text-[#8ea496] hover:bg-[#1a241d]'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold ${
+                      viewMode === 'all'
+                        ? 'bg-[#4ade80] text-black font-mono'
+                        : 'bg-[#111713] text-[#8ea496] border border-[#222e25]'
+                    }`}
+                  >
+                    <BookOpen className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className={`text-xs font-bold ${viewMode === 'all' ? 'text-[#4ade80]' : 'text-[#e1e7e3]'}`}>
+                      সকল হাদিস একসাথে দেখুন
+                    </p>
+                    <p className="text-[10px] text-[#718678] mt-0.5">
+                      সম্পূর্ণ কিতাবের সকল হাদিস এক তালিকায় ({selectedBook?.totalHadithLabel || 'সম্পূর্ণ'})
+                    </p>
+                  </div>
+                </div>
+                {viewMode === 'all' && <Check className="w-4 h-4 text-[#4ade80]" />}
+              </div>
+
               {filteredModalSections.length === 0 ? (
                 <div className="text-center py-10 text-xs text-[#718678]">
                   কোনো অধ্যায় মেলেনি।
