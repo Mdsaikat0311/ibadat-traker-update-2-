@@ -71,6 +71,33 @@ export function getTotalHistoryPoints(history: Record<string, number> | undefine
   return total;
 }
 
+// In-memory cache for all-users snapshot to avoid duplicate heavy network fetches
+let cachedUsersSnapshot: { timestamp: number; snapshot: any } | null = null;
+let activeFetchPromise: Promise<any> | null = null;
+const CACHE_TTL_MS = 20000; // 20 seconds cache
+
+export async function fetchAllUsersSnapshot(force = false): Promise<any> {
+  const now = Date.now();
+  if (!force && cachedUsersSnapshot && (now - cachedUsersSnapshot.timestamp < CACHE_TTL_MS)) {
+    return cachedUsersSnapshot.snapshot;
+  }
+  if (!force && activeFetchPromise) {
+    return activeFetchPromise;
+  }
+  const usersRef = ref(db, 'users');
+  activeFetchPromise = get(usersRef)
+    .then((snapshot) => {
+      cachedUsersSnapshot = { timestamp: Date.now(), snapshot };
+      activeFetchPromise = null;
+      return snapshot;
+    })
+    .catch((err) => {
+      activeFetchPromise = null;
+      throw err;
+    });
+  return activeFetchPromise;
+}
+
 /**
  * Fetch top users by metric from Firebase Realtime Database
  */
@@ -79,10 +106,9 @@ export async function getTopUsersByMetric(
   limit = 20
 ): Promise<LeaderboardUser[]> {
   try {
-    const usersRef = ref(db, 'users');
-    const snapshot = await get(usersRef);
+    const snapshot = await fetchAllUsersSnapshot();
 
-    if (!snapshot.exists()) return [];
+    if (!snapshot || !snapshot.exists()) return [];
 
     const processedUsers: Array<{ id: string; name: string; points: number }> = [];
     const today = new Date();
@@ -93,7 +119,7 @@ export async function getTopUsersByMetric(
 
     const currentUid = auth.currentUser ? auth.currentUser.uid : null;
 
-    snapshot.forEach((childSnap) => {
+    snapshot.forEach((childSnap: any) => {
       const data = childSnap.val();
       if (!data) return;
       const uid = childSnap.key || '';
@@ -101,7 +127,7 @@ export async function getTopUsersByMetric(
 
       const history: Record<string, any> = data.pointsHistory || {};
 
-      // Helper to retrieve points for a specific Date object from pointsHistory or fullState
+      // Helper to retrieve points for a specific Date object from pointsHistory
       const getPointsForDateObj = (d: Date): number => {
         const iso = getDateKey(d);
         const alt = d.toDateString();
@@ -109,15 +135,20 @@ export async function getTopUsersByMetric(
         if (history[iso] !== undefined) pts = Math.max(pts, Number(history[iso]) || 0);
         if (history[alt] !== undefined) pts = Math.max(pts, Number(history[alt]) || 0);
 
-        if (data.fullState) {
-          let fs = data.fullState;
-          if (typeof fs === 'string') {
-            try { fs = JSON.parse(fs); } catch {}
-          }
-          if (fs?.pointsHistory) {
-            if (fs.pointsHistory[iso] !== undefined) pts = Math.max(pts, Number(fs.pointsHistory[iso]) || 0);
-            if (fs.pointsHistory[alt] !== undefined) pts = Math.max(pts, Number(fs.pointsHistory[alt]) || 0);
-          }
+        // Fast return if already found points from pointsHistory
+        if (pts > 0) return pts;
+
+        if (data.fullState && typeof data.fullState === 'string' && data.fullState.length < 50000) {
+          try {
+            if (!data._parsedFullState) {
+              data._parsedFullState = JSON.parse(data.fullState);
+            }
+            const fs = data._parsedFullState;
+            if (fs?.pointsHistory) {
+              if (fs.pointsHistory[iso] !== undefined) pts = Math.max(pts, Number(fs.pointsHistory[iso]) || 0);
+              if (fs.pointsHistory[alt] !== undefined) pts = Math.max(pts, Number(fs.pointsHistory[alt]) || 0);
+            }
+          } catch {}
         }
         return pts;
       };
@@ -399,16 +430,15 @@ export async function fetchUserRanksForMonth(
   if (!user) return {};
 
   try {
-    const usersRef = ref(db, 'users');
-    const snapshot = await get(usersRef);
-    if (!snapshot.exists()) return {};
+    const snapshot = await fetchAllUsersSnapshot();
+    if (!snapshot || !snapshot.exists()) return {};
 
     const monthStr = String(monthIndex + 1).padStart(2, '0');
     const prefix = `${year}-${monthStr}`;
 
     const dateScores: Record<string, Array<{ uid: string; points: number }>> = {};
 
-    snapshot.forEach((childSnap) => {
+    snapshot.forEach((childSnap: any) => {
       const uid = childSnap.key;
       const data = childSnap.val();
       if (!uid || !data) return;
@@ -495,6 +525,8 @@ export function subscribeCommunityUsers(
 ): () => void {
   try {
     const usersRef = ref(db, 'users');
+    let throttleTimer: any = null;
+
     const unsubscribe = onValue(
       usersRef,
       (snapshot) => {
@@ -502,35 +534,36 @@ export function subscribeCommunityUsers(
           callback([]);
           return;
         }
-        const userList: CommunityUserState[] = [];
-        snapshot.forEach((childSnap) => {
-          const uid = childSnap.key || '';
-          const data = childSnap.val() || {};
-          let fullState = null;
-          if (data.fullState) {
-            if (typeof data.fullState === 'string') {
-              try {
-                fullState = JSON.parse(data.fullState);
-              } catch {}
-            } else if (typeof data.fullState === 'object') {
-              fullState = data.fullState;
-            }
-          }
-          userList.push({
-            uid,
-            name: data.name || 'ব্যবহারকারী',
-            fullState,
-            pointsHistory: data.pointsHistory || {},
-            stats: data.stats || {}
+
+        // Cache the latest snapshot
+        cachedUsersSnapshot = { timestamp: Date.now(), snapshot };
+
+        // Throttle updates to at most once per 2 seconds to avoid UI freeze during user actions
+        if (throttleTimer) clearTimeout(throttleTimer);
+        throttleTimer = setTimeout(() => {
+          const userList: CommunityUserState[] = [];
+          snapshot.forEach((childSnap) => {
+            const uid = childSnap.key || '';
+            const data = childSnap.val() || {};
+            userList.push({
+              uid,
+              name: data.name || 'ব্যবহারকারী',
+              fullState: null, // Omit heavy JSON.parse to keep UI at 60fps
+              pointsHistory: data.pointsHistory || {},
+              stats: data.stats || {}
+            });
           });
-        });
-        callback(userList);
+          callback(userList);
+        }, 800);
       },
       (error) => {
         console.warn("subscribeCommunityUsers error:", error);
       }
     );
-    return unsubscribe;
+    return () => {
+      if (throttleTimer) clearTimeout(throttleTimer);
+      unsubscribe();
+    };
   } catch (err) {
     console.warn("Error setting up users subscription:", err);
     return () => {};

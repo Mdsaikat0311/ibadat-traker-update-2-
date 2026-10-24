@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, BookOpen, Sparkles } from 'lucide-react';
+import { Home, BookOpen, Sparkles, Settings } from 'lucide-react';
 import { SalahScreen } from './SalahScreen';
 import { AmalScreen } from './AmalScreen';
 import { DhikrScreen } from './DhikrScreen';
@@ -13,6 +13,7 @@ interface AmalnamaScreenProps {
   onSubTabChange: (tab: AmalnamaSubTab) => void;
   dateDisplayStr?: string;
   onGoToToday?: () => void;
+  onOpenSettings?: () => void;
 
   // Salah props
   appStats: AppStats;
@@ -46,6 +47,7 @@ export const AmalnamaScreen: React.FC<AmalnamaScreenProps> = ({
   onSubTabChange,
   dateDisplayStr,
   onGoToToday,
+  onOpenSettings,
   appStats,
   yesterdayChampion,
   salahLog,
@@ -116,9 +118,10 @@ export const AmalnamaScreen: React.FC<AmalnamaScreenProps> = ({
         </div>
       )}
 
-      {/* Top Segmented Sub-Tabs Bar */}
+      {/* Top Segmented Sub-Tabs Bar with Corner Settings */}
       <div className="sticky -top-4 z-20 -mx-4 px-4 pt-1 pb-2 bg-gradient-to-b from-slate-50 via-slate-50/95 to-slate-50/80 backdrop-blur-xs">
-        <div className="bg-white p-1 rounded-2xl shadow-xs border border-gray-200/90 grid grid-cols-3 gap-1">
+        <div className="flex items-center gap-1.5">
+          <div className="flex-1 bg-white p-1 rounded-2xl shadow-xs border border-gray-200/90 grid grid-cols-3 gap-1">
           {/* SubTab 1: Home / Salah */}
           <button
             type="button"
@@ -223,6 +226,19 @@ export const AmalnamaScreen: React.FC<AmalnamaScreenProps> = ({
               {dhikrCompleted}/{visibleDhikrTasks.length} যিকির
             </span>
           </button>
+        </div>
+
+          {onOpenSettings && (
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              title="সেটিংস ও প্রোফাইল"
+              className="flex flex-col items-center justify-center w-11 h-[52px] bg-white hover:bg-slate-50 text-slate-600 hover:text-teal-800 rounded-2xl shadow-xs border border-gray-200/90 transition-all cursor-pointer group shrink-0"
+            >
+              <Settings className="w-4 h-4 text-slate-500 group-hover:rotate-45 group-hover:text-teal-700 transition-all duration-300" />
+              <span className="text-[9px] font-semibold text-slate-600 mt-1">সেটিংস</span>
+            </button>
+          )}
         </div>
       </div>
 

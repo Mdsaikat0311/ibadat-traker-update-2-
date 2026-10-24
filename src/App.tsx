@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { repository, IbadatRepository } from './data/repository';
 import { DuaNote, TaskStats, ChampionInfo } from './types/ibadat';
 import { TabId, BottomNav } from './components/BottomNav';
@@ -11,6 +11,7 @@ import { CustomAlertDialog } from './components/dialogs/CustomAlertDialog';
 import { getRandomQuote } from './data/hadithBank';
 
 import { AmalnamaScreen, AmalnamaSubTab } from './screens/AmalnamaScreen';
+import { QuranScreen } from './screens/QuranScreen';
 import { NotesScreen } from './screens/NotesScreen';
 import { ReportsScreen } from './screens/ReportsScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
@@ -45,9 +46,6 @@ export const App: React.FC = () => {
     if (tab === 'salah') {
       setActiveTab('amalnama');
       setAmalnamaSubTab('salah');
-    } else if (tab === 'quran') {
-      setActiveTab('amalnama');
-      setAmalnamaSubTab('amal');
     } else if (tab === 'dhikr') {
       setActiveTab('amalnama');
       setAmalnamaSubTab('dhikr');
@@ -111,8 +109,15 @@ export const App: React.FC = () => {
     setLifetimeStartDate(repository.getLifetimeStartDate());
   }, [currentViewingDate]);
 
-  // Sync to Firebase Realtime Database
-  const saveToFirebaseCloud = useCallback(async (dateKey = currentViewingDate) => {
+  // Refresh view data when viewing date changes
+  useEffect(() => {
+    refreshAll();
+  }, [currentViewingDate, refreshAll]);
+
+  // Debounced Sync to Firebase Realtime Database to guarantee 0ms instant UI clicks
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const saveToFirebaseCloud = useCallback((dateKey = currentViewingDate, immediate = false) => {
     const points = repository.calculatePoints(dateKey);
     repository.savePointsForDate(dateKey, points);
     const stats = repository.getAppStats(dateKey);
@@ -122,61 +127,73 @@ export const App: React.FC = () => {
     NotificationService.scheduleDynamicNightlyNotifications();
 
     if (!auth.currentUser) return;
-    try {
-      await syncStateToFirebase(dateKey, points, stats, repository.getFullState());
-    } catch (err) {
-      console.warn("Failed saving state to Firebase:", err);
+
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+
+    const doSync = async () => {
+      try {
+        await syncStateToFirebase(dateKey, points, stats, repository.getFullState());
+      } catch (err) {
+        console.warn("Failed saving state to Firebase:", err);
+      }
+    };
+
+    if (immediate) {
+      doSync();
+    } else {
+      saveTimeoutRef.current = setTimeout(doSync, 1000);
     }
   }, [currentViewingDate]);
 
-  // Auth State Listener & Cloud Sync
+  // Auth State Listener & Cloud Sync - runs ONLY once on initial mount
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
-        // Fetch cloud state from Firebase Realtime Database
-        const cloudState = await fetchUserCloudState(user.uid);
-        if (cloudState) {
-          repository.loadFromCloudState(cloudState);
-        }
+        try {
+          // Fetch cloud state from Firebase Realtime Database
+          const cloudState = await fetchUserCloudState(user.uid);
+          if (cloudState) {
+            repository.loadFromCloudState(cloudState);
+          }
 
-        // Fetch user account lifetime points and pointsHistory from Firebase
-        const cloudLifetime = await fetchUserAccountLifetimePoints(user.uid);
-        if (cloudLifetime !== null && cloudLifetime > 0) {
-          repository.setAccountLifetimePoints(cloudLifetime);
-        }
+          // Fetch user account lifetime points and pointsHistory from Firebase
+          const cloudLifetime = await fetchUserAccountLifetimePoints(user.uid);
+          if (cloudLifetime !== null && cloudLifetime > 0) {
+            repository.setAccountLifetimePoints(cloudLifetime);
+          }
 
-        const cloudHistory = await fetchUserPointsHistory(user.uid);
-        if (cloudHistory && typeof cloudHistory === 'object') {
-          repository.saveAllPointsHistory(cloudHistory);
-        }
+          const cloudHistory = await fetchUserPointsHistory(user.uid);
+          if (cloudHistory && typeof cloudHistory === 'object') {
+            repository.saveAllPointsHistory(cloudHistory);
+          }
 
-        const displayName = user.displayName || 'ব্যবহারকারী';
-        repository.setUserName(displayName);
-        repository.setCurrentUser({
-          id: user.uid,
-          name: displayName,
-          email: user.email || ''
-        });
+          const displayName = user.displayName || 'ব্যবহারকারী';
+          repository.setUserName(displayName);
+          repository.setCurrentUser({
+            id: user.uid,
+            name: displayName,
+            email: user.email || ''
+          });
 
-        refreshAll();
+          refreshAll();
 
-        // Immediately update stats in Firebase Realtime DB
-        const pts = repository.calculatePoints(currentViewingDate);
-        repository.savePointsForDate(currentViewingDate, pts);
-        const stats = repository.getAppStats(currentViewingDate);
-        await syncStateToFirebase(currentViewingDate, pts, stats, repository.getFullState());
-
-        // Sync FCM push token to user profile if available
-        const currentFcmToken = FCMService.getToken();
-        if (currentFcmToken) {
-          FCMService.saveTokenToFirebase(currentFcmToken);
+          // Sync FCM push token to user profile if available
+          const currentFcmToken = FCMService.getToken();
+          if (currentFcmToken) {
+            FCMService.saveTokenToFirebase(currentFcmToken);
+          }
+        } catch (err) {
+          console.warn("Failed syncing user state from cloud on auth:", err);
         }
       }
     });
 
     return () => unsubscribeAuth();
-  }, [currentViewingDate, refreshAll]);
+  }, [refreshAll]);
 
   // Fetch Firebase Champion and Ranks
   const refreshFirebaseMetrics = useCallback(async () => {
@@ -225,15 +242,14 @@ export const App: React.FC = () => {
           repository.saveAllPointsHistory(cloudHistory);
         }
 
-        setAppStats(repository.getAppStats(currentViewingDate));
+        setAppStats(repository.getAppStats(repository.getTodayKey()));
       } catch (err) {
         console.warn("Failed syncing account points:", err);
       }
     }
-  }, [currentViewingDate]);
+  }, []);
 
   useEffect(() => {
-    refreshAll();
     refreshFirebaseMetrics();
     NotificationService.syncAllCordovaReminders(repository.getReminders());
     if (repository.isAutoHadithEnabled()) {
@@ -256,7 +272,10 @@ export const App: React.FC = () => {
 
     const unsubscribeCommunity = subscribeCommunityUsers((users) => {
       repository.setCommunityUsers(users);
-      refreshAll();
+      const champ = repository.getYesterdayChampion();
+      if (champ) {
+        setYesterdayChampion(champ);
+      }
     });
 
     const unsubscribeInApp = NotificationService.addInAppListener((title, body) => {
@@ -269,7 +288,7 @@ export const App: React.FC = () => {
       unsubscribePush();
       unsubscribeInApp();
     };
-  }, [refreshAll, refreshFirebaseMetrics, showAlert]);
+  }, []);
 
   // Periodic reminder checking interval (every 15s) for in-app and browser notifications
   useEffect(() => {
@@ -324,32 +343,41 @@ export const App: React.FC = () => {
     setCurrentViewingDate(repository.getTodayKey());
   };
 
+  // Instant local UI updates with debounced background cloud sync
   const handleToggleSalah = (key: string) => {
     if (currentViewingDate > repository.getTodayKey()) return;
     repository.toggleTask("salah", currentViewingDate, key);
-    refreshAll();
-    saveToFirebaseCloud();
+    setSalahLog(repository.getLog("salah", currentViewingDate));
+    saveToFirebaseCloud(currentViewingDate);
   };
 
   const handleToggleNawafil = (key: string) => {
     if (currentViewingDate > repository.getTodayKey()) return;
     repository.toggleTask("nawafil", currentViewingDate, key);
-    refreshAll();
-    saveToFirebaseCloud();
+    setNawafilLog(repository.getLog("nawafil", currentViewingDate));
+    saveToFirebaseCloud(currentViewingDate);
   };
 
   const handleToggleDhikr = (key: string) => {
     if (currentViewingDate > repository.getTodayKey()) return;
     repository.toggleTask("dhikr", currentViewingDate, key);
-    refreshAll();
-    saveToFirebaseCloud();
+    setDhikrLog(repository.getLog("dhikr", currentViewingDate));
+    saveToFirebaseCloud(currentViewingDate);
   };
 
   const handleToggleRoutineTask = (category: string, taskKey: string) => {
     if (currentViewingDate > repository.getTodayKey()) return;
     repository.toggleTask(category, currentViewingDate, taskKey);
-    refreshAll();
-    saveToFirebaseCloud();
+    if (category === "specialAmal") {
+      setSpecialAmalLog(repository.getLog("specialAmal", currentViewingDate));
+    } else if (category === "morning") {
+      setMorningLog(repository.getLog("morning", currentViewingDate));
+    } else if (category === "nightly") {
+      setNightlyLog(repository.getLog("nightly", currentViewingDate));
+    } else if (category === "quran") {
+      setQuranLog(repository.getLog("quran", currentViewingDate));
+    }
+    saveToFirebaseCloud(currentViewingDate);
   };
 
   const handleGetTaskStats = (category: string, taskKey: string): TaskStats => {
@@ -562,6 +590,11 @@ export const App: React.FC = () => {
           title: "দোয়া ও মোনাজাত",
           subtitle: "দৈনন্দিন দোয়া ও জিকির"
         };
+      case 'quran':
+        return {
+          title: "কুরআন মাজীদ",
+          subtitle: "১১৪ টি সূরা ও ৩০ পারা"
+        };
       case 'hadith':
         return {
           title: "আল-হাদিস",
@@ -574,8 +607,8 @@ export const App: React.FC = () => {
         };
       case 'duaNotes':
         return {
-          title: "গুরুত্বপূর্ণ দু’আ/নোট",
-          subtitle: `${duaNotes.length} টি নোট`
+          title: "ইসলামিক নোট ও দু’আ",
+          subtitle: `${duaNotes.length} টি সংরক্ষিত নোট`
         };
       case 'reports':
         return {
@@ -627,13 +660,14 @@ export const App: React.FC = () => {
       )}
 
       {/* Main Content */}
-      <main id="app-main-content" className={`flex-grow space-y-6 overflow-y-auto pb-24 ${activeTab === 'dua' || activeTab === 'hadith' ? 'p-4 bg-[#111613]' : 'p-4'}`}>
-        {(activeTab === 'amalnama' || activeTab === 'salah' || activeTab === 'quran' || activeTab === 'dhikr') && (
+      <main id="app-main-content" className={`flex-grow space-y-6 overflow-y-auto pb-24 ${activeTab === 'dua' || activeTab === 'hadith' || activeTab === 'quran' ? 'p-4 bg-[#0e1412]' : 'p-4'}`}>
+        {(activeTab === 'amalnama' || activeTab === 'salah' || activeTab === 'dhikr') && (
           <AmalnamaScreen
             currentSubTab={amalnamaSubTab}
             onSubTabChange={setAmalnamaSubTab}
             dateDisplayStr={dateDisplayStr}
             onGoToToday={handleGoToToday}
+            onOpenSettings={() => handleTabChange('settings')}
             appStats={appStats}
             yesterdayChampion={yesterdayChampion}
             salahLog={salahLog}
@@ -655,6 +689,10 @@ export const App: React.FC = () => {
             dhikrLog={dhikrLog}
             onToggleDhikr={handleToggleDhikr}
           />
+        )}
+
+        {activeTab === 'quran' && (
+          <QuranScreen onShowAlert={showAlert} />
         )}
 
         {activeTab === 'dua' && (

@@ -51,6 +51,16 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
               {appStats.todayPoints}
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => onSelectTab('settings')}
+            title="সেটিংস ও অ্যাকাউন্ট"
+            className="flex flex-col items-center justify-center w-12 h-12 rounded-xl bg-black/25 hover:bg-black/40 backdrop-blur-xs border border-white/10 text-white hover:text-emerald-200 transition-all cursor-pointer group shadow-xs"
+          >
+            <Settings className="w-5 h-5 group-hover:rotate-45 transition-transform duration-300" />
+            <span className="text-[9px] font-semibold mt-0.5 text-emerald-100">সেটিংস</span>
+          </button>
         </div>
       </div>
 
@@ -59,10 +69,10 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
           অন্যান্য সেকশন ও সুবিধাসমূহ
         </h3>
 
-        {/* 1. Dhikr Tracker */}
+        {/* 1. Dhikr Tracker - Hidden because already present in Amalnama */}
         <div
           onClick={() => onSelectTab('dhikr')}
-          className="flex items-center justify-between p-3.5 bg-white rounded-2xl border border-gray-200 shadow-xs hover:border-teal-500 hover:shadow-md transition cursor-pointer group"
+          className="hidden"
         >
           <div className="flex items-center gap-3.5">
             <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 group-hover:scale-105 transition-transform">
@@ -80,10 +90,10 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
           <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-teal-600 group-hover:translate-x-0.5 transition-all" />
         </div>
 
-        {/* 2. Reports & Calendar */}
+        {/* 2. Reports & Calendar - Hidden because already present in bottom nav */}
         <div
           onClick={() => onSelectTab('reports')}
-          className="flex items-center justify-between p-3.5 bg-white rounded-2xl border border-gray-200 shadow-xs hover:border-teal-500 hover:shadow-md transition cursor-pointer group"
+          className="hidden"
         >
           <div className="flex items-center gap-3.5">
             <div className="w-11 h-11 rounded-xl bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-700 group-hover:scale-105 transition-transform">
@@ -127,10 +137,10 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
           <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-teal-600 group-hover:translate-x-0.5 transition-all" />
         </div>
 
-        {/* 4. Settings & Account */}
+        {/* 4. Settings & Account - Converted to top-corner icon button */}
         <div
           onClick={() => onSelectTab('settings')}
-          className="flex items-center justify-between p-3.5 bg-white rounded-2xl border border-gray-200 shadow-xs hover:border-teal-500 hover:shadow-md transition cursor-pointer group"
+          className="hidden"
         >
           <div className="flex items-center gap-3.5">
             <div className="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 group-hover:scale-105 transition-transform">
