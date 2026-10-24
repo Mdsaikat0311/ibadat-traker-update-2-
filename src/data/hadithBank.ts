@@ -1,4 +1,11 @@
 import { DuaNote } from '../types/ibadat';
+import nawawi40Full from './nawawi40Full.json';
+import qudsi40Full from './qudsi40Full.json';
+import selected300Full from './selected300Full.json';
+import shamayilFull from './shamayilFull.json';
+import adabMufradFull from './adabMufradFull.json';
+import riyadFull from './riyadFull.json';
+import { HADITH_BOOKS } from './hadithCollection';
 
 export const AUTO_LIBRARY_NOTES: DuaNote[] = [
   {
@@ -104,7 +111,56 @@ export const QUOTES: string[] = [
   "যে ব্যক্তি আল্লাহকে ভয় করে, আল্লাহ তার জন্য পথ খুলে দেন। (সূরা তালাক: ২)"
 ];
 
-export function getRandomQuote(): string {
-  const index = Math.floor(Math.random() * QUOTES.length);
-  return QUOTES[index];
+export interface FullHadithNotification {
+  title: string;
+  body: string;
+  reference: string;
+  narrator?: string;
+  arabic?: string;
 }
+
+export function getRandomHadithFromAllCollections(): FullHadithNotification {
+  const sources = [
+    { name: 'ইমাম নববীর ৪০ হাদিস', data: nawawi40Full as any[] },
+    { name: '৪০ হাদিসে কুদসী', data: qudsi40Full as any[] },
+    { name: 'নির্বাচিত হাদিস', data: selected300Full as any[] },
+    { name: 'শামায়েলে তিরমিযী', data: shamayilFull as any[] },
+    { name: 'আল-আদাবুল মুফরাদ', data: adabMufradFull as any[] },
+    { name: 'রিয়াদুস সালেহীন', data: riyadFull as any[] },
+    { name: 'সিহাহ সিত্তাহ সংকলন', data: HADITH_BOOKS.flatMap((b) => b.hadiths) }
+  ];
+
+  const validSources = sources.filter((s) => Array.isArray(s.data) && s.data.length > 0);
+  const chosenSource = validSources[Math.floor(Math.random() * validSources.length)];
+  const hadith = chosenSource.data[Math.floor(Math.random() * chosenSource.data.length)];
+
+  const text = String(hadith?.text || hadith?.translation || '').trim();
+  const rawRef = String(hadith?.reference || hadith?.chapter || chosenSource.name).trim();
+  const narrator = hadith?.narrator ? String(hadith.narrator).trim() : '';
+  const arabic = String(hadith?.arabicText || hadith?.arabic || '').trim();
+
+  if (text) {
+    const title = narrator ? `📜 ${narrator}` : `📜 হাদিস: ${rawRef}`;
+    const body = `${text}\n\n— সূত্র: ${rawRef}`;
+    return {
+      title,
+      body,
+      reference: rawRef,
+      narrator,
+      arabic
+    };
+  }
+
+  const fallbackQuote = QUOTES[Math.floor(Math.random() * QUOTES.length)];
+  return {
+    title: '📜 হাদিস ও বাণী',
+    body: fallbackQuote,
+    reference: 'আল-হাদিস'
+  };
+}
+
+export function getRandomQuote(): string {
+  const h = getRandomHadithFromAllCollections();
+  return h.body;
+}
+

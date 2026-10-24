@@ -1,5 +1,5 @@
 import { ReminderSetting } from '../types/ibadat';
-import { getRandomQuote } from '../data/hadithBank';
+import { getRandomHadithFromAllCollections, FullHadithNotification } from '../data/hadithBank';
 import { repository } from '../data/repository';
 import { auth, getTopUsersByMetric } from './firebase';
 
@@ -633,13 +633,13 @@ export class NotificationService {
 
       for (let i = 1; i <= count; i++) {
         const triggerTime = new Date(now + i * intervalMinutes * 60 * 1000);
-        const quote = getRandomQuote();
+        const hadith = getRandomHadithFromAllCollections();
 
         notifications.push({
           id: 80000 + i,
-          title: '📜 হাদিস ও বাণী',
-          text: quote, // সরাসরি সম্পূর্ণ হাদিস নোটিফিকেশনে থাকবে
-          summary: '১ ঘণ্টার নসীহত',
+          title: hadith.title,
+          text: hadith.body, // সরাসরি সম্পূর্ণ হাদিস নোটিফিকেশনে থাকবে এবং স্ক্রল করে টান দিলে বড় হয়ে পুরোটা পড়া যাবে
+          summary: hadith.reference,
           trigger: { at: triggerTime },
           foreground: true,
           wakeup: true,
@@ -655,10 +655,20 @@ export class NotificationService {
       }
 
       window.cordova!.plugins!.notification!.local!.schedule(notifications);
-      console.log(`[Cordova] Successfully scheduled ${notifications.length} hourly hadith notifications with reminder_sound2.`);
+      console.log(`[Cordova] Successfully scheduled ${notifications.length} hourly hadith notifications from all collections with reminder_sound2.`);
     } catch (e) {
       console.warn("Failed scheduling Cordova hadith notifications", e);
     }
+  }
+
+  /**
+   * Test a random Hadith notification immediately from all available collections.
+   * Sends the full Hadith so the user can pull down the notification shade and read it right away without opening the app.
+   */
+  static testRandomHadithNotification(): FullHadithNotification {
+    const hadith = getRandomHadithFromAllCollections();
+    this.sendNotification(hadith.title, hadith.body);
+    return hadith;
   }
 
   /**
@@ -777,11 +787,9 @@ export class NotificationService {
       const elapsedMinutes = (Date.now() - lastHadithTimestamp) / (1000 * 60);
       if (elapsedMinutes >= 60) {
         lastHadithTimestamp = Date.now();
-        const quote = getRandomQuote();
-        const title = `📜 হাদিস ও বাণী`;
-        const msg = quote; // সরাসরি সম্পূর্ণ হাদিস
-        this.sendNotification(title, msg);
-        onInAppNotification(title, msg);
+        const hadith = getRandomHadithFromAllCollections();
+        this.sendNotification(hadith.title, hadith.body);
+        onInAppNotification(hadith.title, hadith.body);
       }
     }
 

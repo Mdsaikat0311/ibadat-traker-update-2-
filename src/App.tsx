@@ -8,7 +8,7 @@ import { ReminderDialog } from './components/dialogs/ReminderDialog';
 import { NoteDetailDialog } from './components/dialogs/NoteDetailDialog';
 import { LeaderboardDialog } from './components/dialogs/LeaderboardDialog';
 import { CustomAlertDialog } from './components/dialogs/CustomAlertDialog';
-import { getRandomQuote } from './data/hadithBank';
+import { getRandomHadithFromAllCollections } from './data/hadithBank';
 
 import { AmalnamaScreen, AmalnamaSubTab } from './screens/AmalnamaScreen';
 import { QuranScreen } from './screens/QuranScreen';
@@ -42,7 +42,12 @@ export const App: React.FC = () => {
   const [amalnamaSubTab, setAmalnamaSubTab] = useState<AmalnamaSubTab>('salah');
   const [currentViewingDate, setCurrentViewingDate] = useState<string>(repository.getTodayKey());
 
+  const [openAllahNamesInDua, setOpenAllahNamesInDua] = useState<boolean>(false);
+
   const handleTabChange = useCallback((tab: TabId) => {
+    if (tab !== 'dua') {
+      setOpenAllahNamesInDua(false);
+    }
     if (tab === 'salah') {
       setActiveTab('amalnama');
       setAmalnamaSubTab('salah');
@@ -52,6 +57,11 @@ export const App: React.FC = () => {
     } else {
       setActiveTab(tab);
     }
+  }, []);
+
+  const handleOpenAllahNames = useCallback(() => {
+    setActiveTab('dua');
+    setOpenAllahNamesInDua(true);
   }, []);
 
   // Firebase Auth State
@@ -433,8 +443,8 @@ export const App: React.FC = () => {
     const next = !autoHadithEnabled;
     if (next) {
       await NotificationService.requestPermission();
-      const quote = getRandomQuote();
-      NotificationService.sendNotification("📜 হাদিস ও বাণী", quote);
+      const hadith = getRandomHadithFromAllCollections();
+      NotificationService.sendNotification(hadith.title, hadith.body);
       NotificationService.scheduleCordovaHadithReminders(60);
     } else {
       NotificationService.cancelCordovaHadithReminders();
@@ -690,6 +700,7 @@ export const App: React.FC = () => {
             onToggleRoutineTask={handleToggleRoutineTask}
             dhikrLog={dhikrLog}
             onToggleDhikr={handleToggleDhikr}
+            onOpenAllahNames={handleOpenAllahNames}
           />
         )}
 
@@ -698,7 +709,10 @@ export const App: React.FC = () => {
         )}
 
         {activeTab === 'dua' && (
-          <DuaScreen onShowAlert={showAlert} />
+          <DuaScreen
+            onShowAlert={showAlert}
+            initialShowAllahNames={openAllahNamesInDua}
+          />
         )}
 
         {activeTab === 'hadith' && (

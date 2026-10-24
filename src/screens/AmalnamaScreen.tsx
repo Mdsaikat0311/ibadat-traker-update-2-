@@ -40,6 +40,7 @@ interface AmalnamaScreenProps {
   // Dhikr props
   dhikrLog: Record<string, boolean>;
   onToggleDhikr: (key: string) => void;
+  onOpenAllahNames?: () => void;
 }
 
 export const AmalnamaScreen: React.FC<AmalnamaScreenProps> = ({
@@ -67,7 +68,8 @@ export const AmalnamaScreen: React.FC<AmalnamaScreenProps> = ({
   quranLog,
   onToggleRoutineTask,
   dhikrLog,
-  onToggleDhikr
+  onToggleDhikr,
+  onOpenAllahNames
 }) => {
   // 1. Calculate Salah completion
   const fardKeys = ['fajr', 'zuhr', 'asr', 'maghrib', 'isha'];
@@ -285,6 +287,7 @@ export const AmalnamaScreen: React.FC<AmalnamaScreenProps> = ({
             onOpenDetails={onOpenDetails}
             onOpenReminder={onOpenReminder}
             getTaskStats={getTaskStats}
+            onOpenAllahNames={onOpenAllahNames}
           />
         )}
       </div>

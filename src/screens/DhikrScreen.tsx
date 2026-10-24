@@ -11,6 +11,7 @@ interface DhikrScreenProps {
   onOpenDetails: (name: string, details: string) => void;
   onOpenReminder: (key: string, name: string) => void;
   getTaskStats: (category: string, taskKey: string) => TaskStats;
+  onOpenAllahNames?: () => void;
 }
 
 export const DhikrScreen: React.FC<DhikrScreenProps> = ({
@@ -23,6 +24,7 @@ export const DhikrScreen: React.FC<DhikrScreenProps> = ({
 }) => {
   return (
     <div className="space-y-4 pb-20">
+
       <h2 className="text-xl font-bold text-gray-800 mb-4">
         গুরুত্বপূর্ণ দৈনিক যিকির
       </h2>

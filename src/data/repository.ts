@@ -1090,72 +1090,69 @@ export class IbadatRepository {
     else if (metricType === "totalPoints30Days") userScore = stats.totalPoints30Days;
     else if (metricType === "highScore30Days") userScore = stats.highScore30Days;
 
-    let baseContenders: [string, number][] = [];
-    if (metricType === "todayPoints") {
-      baseContenders = [
-        ["মাওলানা তারেক", 140],
-        ["আব্দুল্লাহ আল-মামুন", 125],
-        ["সালমান ফারিস", 110],
-        ["রাশেদুল হাসান", 95],
-        ["নাঈম আহমেদ", 90],
-        ["ফারহান চৌধুরী", 85],
-        ["তানভীর মাহমুদ", 75],
-        ["জুবায়ের হোসেন", 65]
-      ];
-    } else if (metricType === "yesterdayPoints") {
-      baseContenders = [
-        ["আহমাদুল্লাহ", 145],
-        ["মাহবুবুর রহমান", 135],
-        ["মুস্তাফিজুর রহমান", 120],
-        ["সাইফুল ইসলাম", 115],
-        ["ইমরান খান", 100],
-        ["সাকিব আল হাসান", 95],
-        ["কামরুল হাসান", 80],
-        ["আরিফুল হক", 70]
-      ];
-    } else if (metricType === "totalPoints7Days") {
-      baseContenders = [
-        ["আব্দুল্লাহ আল-মামুন", 920],
-        ["মাওলানা তারেক", 880],
-        ["মাহবুবুর রহমান", 810],
-        ["সালমান ফারিস", 740],
-        ["রাশেদুল হাসান", 680],
-        ["মুস্তাফিজুর রহমান", 620],
-        ["নাঈম আহমেদ", 580],
-        ["সাইফুল ইসলাম", 540]
-      ];
-    } else if (metricType === "totalPoints30Days") {
-      baseContenders = [
-        ["আব্দুল্লাহ আল-মামুন", 3850],
-        ["মাওলানা তারেক", 3620],
-        ["আহমাদুল্লাহ", 3490],
-        ["মাহবুবুর রহমান", 3210],
-        ["সালমান ফারিস", 2980],
-        ["রাশেদুল হাসান", 2750],
-        ["মুস্তাফিজুর রহমান", 2510],
-        ["সাইফুল ইসলাম", 2340]
-      ];
-    } else {
-      baseContenders = [
-        ["আব্দুল্লাহ আল-মামুন", 12450],
-        ["মাওলানা তারেক", 11800],
-        ["আহমাদুল্লাহ", 10950],
-        ["মাহবুবুর রহমান", 9820],
-        ["সালমান ফারিস", 8900],
-        ["রাশেদুল হাসান", 8150],
-        ["মুস্তাফিজুর রহমান", 7600],
-        ["সাইফুল ইসলাম", 7100]
-      ];
+    const list: LeaderboardUser[] = [];
+    const currentUid = this.getCurrentUser()?.id;
+
+    // Only real registered community users from Firebase/cloud (strictly no fake/demo data)
+    if (this.communityUsers && this.communityUsers.length > 0) {
+      const today = new Date();
+      const todayIso = this.formatIsoDate(today);
+      const yesterday = new Date(today);
+      yesterday.setDate(today.getDate() - 1);
+      const yesterdayIso = this.formatIsoDate(yesterday);
+
+      this.communityUsers.forEach((u) => {
+        if (currentUid && u.uid === currentUid) return;
+        const history = u.pointsHistory || {};
+        let pts = 0;
+
+        if (metricType === "todayPoints") {
+          pts = Number(history[todayIso]) || 0;
+        } else if (metricType === "yesterdayPoints") {
+          pts = Number(history[yesterdayIso]) || 0;
+        } else if (metricType === "totalPoints7Days") {
+          for (let i = 0; i < 7; i++) {
+            const d = new Date(today);
+            d.setDate(today.getDate() - i);
+            pts += Number(history[this.formatIsoDate(d)]) || 0;
+          }
+        } else if (metricType === "totalPoints30Days") {
+          for (let i = 0; i < 30; i++) {
+            const d = new Date(today);
+            d.setDate(today.getDate() - i);
+            pts += Number(history[this.formatIsoDate(d)]) || 0;
+          }
+        } else if (metricType === "highScore30Days") {
+          for (let i = 0; i < 30; i++) {
+            const d = new Date(today);
+            d.setDate(today.getDate() - i);
+            const p = Number(history[this.formatIsoDate(d)]) || 0;
+            if (p > pts) pts = p;
+          }
+        } else {
+          // Total Lifetime Points
+          if (u.fullState?.stats?.totalLifetimePoints) {
+            pts = Number(u.fullState.stats.totalLifetimePoints) || 0;
+          } else {
+            Object.values(history).forEach((val) => {
+              pts += Number(val) || 0;
+            });
+          }
+        }
+
+        if (pts > 0) {
+          list.push({
+            id: u.uid || `user_${Math.random()}`,
+            name: u.name || 'ব্যবহারকারী',
+            points: pts,
+            rank: 0,
+            isCurrentUser: false
+          });
+        }
+      });
     }
 
-    const list: LeaderboardUser[] = baseContenders.map(([name, pts], i) => ({
-      id: `contender_${i}`,
-      name,
-      points: pts,
-      rank: 0,
-      isCurrentUser: false
-    }));
-
+    // Always include real current user
     list.push({
       id: "user_me",
       name: userName,

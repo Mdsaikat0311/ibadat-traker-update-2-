@@ -13,12 +13,16 @@ import {
 } from 'lucide-react';
 import { DUA_CATEGORIES, DuaCategory, DuaItem } from '../data/duaBank';
 import { NotificationService } from '../services/notificationService';
+import { ALLAH_99_NAMES } from '../data/allahNamesData';
+import { Allah99NamesView } from '../components/names/Allah99NamesView';
 
 interface DuaScreenProps {
   onShowAlert?: (msg: string, isSuccess: boolean) => void;
+  initialShowAllahNames?: boolean;
 }
 
-export const DuaScreen: React.FC<DuaScreenProps> = ({ onShowAlert }) => {
+export const DuaScreen: React.FC<DuaScreenProps> = ({ onShowAlert, initialShowAllahNames }) => {
+  const [showAllahNames, setShowAllahNames] = useState(initialShowAllahNames || false);
   const [selectedCategory, setSelectedCategory] = useState<DuaCategory | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [onlyBookmarks, setOnlyBookmarks] = useState(false);
@@ -164,6 +168,27 @@ export const DuaScreen: React.FC<DuaScreenProps> = ({ onShowAlert }) => {
     );
   }, [allDuas, bookmarkedIds, onlyBookmarks, selectedCategory, searchQuery]);
 
+  const matchingAllahNames = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.toLowerCase().trim();
+    return ALLAH_99_NAMES.filter(
+      (n) =>
+        n.name.toLowerCase().includes(q) ||
+        n.meaning.toLowerCase().includes(q) ||
+        n.arabic.includes(q) ||
+        n.bnNumber.includes(q)
+    );
+  }, [searchQuery]);
+
+  if (showAllahNames) {
+    return (
+      <Allah99NamesView
+        onBack={() => setShowAllahNames(false)}
+        onShowAlert={onShowAlert}
+      />
+    );
+  }
+
   return (
     <div className="w-full min-h-screen bg-[#111613] text-[#e1e7e3] -m-4 p-4 font-sans selection:bg-emerald-900 selection:text-white">
       {/* Header bar styled exactly like Screenshot 1 */}
@@ -268,10 +293,36 @@ export const DuaScreen: React.FC<DuaScreenProps> = ({ onShowAlert }) => {
           {/* If user searched globally from category list */}
           {searchQuery ? (
             <div className="space-y-3 pt-1">
+              {/* Search match banner for 99 Names of Allah */}
+              {matchingAllahNames.length > 0 && (
+                <div
+                  onClick={() => setShowAllahNames(true)}
+                  className="p-3 rounded-2xl bg-gradient-to-r from-[#173020] via-[#122418] to-[#101b14] border border-emerald-600/60 flex items-center justify-between cursor-pointer hover:border-emerald-400 transition group mb-3 shadow-md"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-[#1b432a] border border-[#2d6c44] text-[#4ade80] flex items-center justify-center font-bold text-sm font-serif">
+                      ৯৯
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold text-emerald-300 group-hover:text-emerald-200 flex items-center gap-2">
+                        আল্লাহর ৯৯ নাম
+                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-950 text-emerald-300 font-semibold border border-emerald-600/40">
+                          {matchingAllahNames.length} টি মিল
+                        </span>
+                      </div>
+                      <div className="text-xs text-[#8ca895]">
+                        ক্লিক করে ৯৯ নামের তালিকা, অর্থ ও ফজিলত দেখুন
+                      </div>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-emerald-400 group-hover:translate-x-0.5 transition" />
+                </div>
+              )}
+
               <p className="text-xs text-[#8ea496] px-1 font-medium">
                 অনুসন্ধানের ফলাফল ({displayedDuas.length} টি দোয়া):
               </p>
-              {displayedDuas.length === 0 ? (
+              {displayedDuas.length === 0 && matchingAllahNames.length === 0 ? (
                 <div className="text-center py-12 text-[#60796a] text-sm">
                   কোনো দোয়া পাওয়া যায়নি। অন্য শব্দ দিয়ে চেষ্টা করুন।
                 </div>
@@ -297,8 +348,40 @@ export const DuaScreen: React.FC<DuaScreenProps> = ({ onShowAlert }) => {
               )}
             </div>
           ) : (
-            /* The 14 Categories matching Screenshot 1 */
+            /* The Categories matching Screenshot 1 with 99 Names of Allah FIRST */
             <div className="divide-y divide-[#1c261f]">
+              {/* 1. আল্লাহর ৯৯ নাম (সবার প্রথমে ক্যাটাগরি) */}
+              <div
+                onClick={() => setShowAllahNames(true)}
+                className="flex items-center justify-between py-3.5 px-2 hover:bg-[#18211b] active:bg-[#1d2720] transition rounded-xl cursor-pointer group bg-gradient-to-r from-[#14261b]/90 via-[#101c15]/60 to-transparent border border-emerald-800/50 my-1 shadow-xs"
+              >
+                <div className="flex items-center gap-3.5">
+                  {/* Dark Green Circle with 99 */}
+                  <div className="w-9 h-9 rounded-full bg-[#1b432a] border border-[#2d6c44] flex items-center justify-center text-[#4ade80] font-bold text-sm shadow-xs shrink-0 group-hover:scale-105 transition-transform font-serif">
+                    ৯৯
+                  </div>
+                  <div>
+                    <span className="text-[15px] font-semibold text-[#edf2ee] group-hover:text-[#4ade80] transition-colors flex items-center gap-2">
+                      আল্লাহর ৯৯ নাম
+                      <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-950 text-emerald-300 font-semibold border border-emerald-600/40">
+                        আসমাউল হুসনা
+                      </span>
+                    </span>
+                    <p className="text-[11px] text-[#789382] leading-tight mt-0.5">
+                      অর্থ, ফজিলত ও আমলের নিয়মাবলী
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {/* Count Pill */}
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#182d20] text-[#4ade80] font-semibold border border-[#21432e]">
+                    ৯৯টি
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-[#4f6456] group-hover:text-[#4ade80] group-hover:translate-x-0.5 transition-all" />
+                </div>
+              </div>
+
               {DUA_CATEGORIES.map((cat) => (
                 <div
                   key={cat.id}

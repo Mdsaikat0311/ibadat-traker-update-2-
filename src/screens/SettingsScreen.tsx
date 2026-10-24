@@ -394,29 +394,53 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       {/* Shared Settings & Preferences (Available Online & Offline) */}
       <div className="space-y-4">
         {/* Automatic Hadith */}
-        <div className="p-4 bg-white rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
-          <div>
-            <h3 className="text-lg font-bold text-gray-800 flex items-center">
-              <BookHeart className="w-5 h-5 mr-2 text-indigo-600" />
-              <span>অটোমেটিক হাদিস</span>
-            </h3>
-            <p className="text-xs text-gray-500 mt-1">
-              প্রতি ১ ঘণ্টা পর পর (অনলাইন/অফলাইন)
-            </p>
-            <p className="text-[11px] text-teal-600 font-medium mt-0.5">
-              সরাসরি নোটিফিকেশন প্যানেলেই সম্পূর্ণ হাদিস পড়তে পারবেন
-            </p>
+        <div className="p-4 bg-white rounded-xl shadow-sm border border-gray-100">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="text-lg font-bold text-gray-800 flex items-center">
+                <BookHeart className="w-5 h-5 mr-2 text-indigo-600" />
+                <span>অটোমেটিক হাদিস</span>
+              </h3>
+              <p className="text-xs text-gray-500 mt-1">
+                প্রতি ১ ঘণ্টা পর পর (অনলাইন/অফলাইন ব্যাকগ্রাউন্ড)
+              </p>
+            </div>
+
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={autoHadithEnabled}
+                onChange={onToggleAutoHadith}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600" />
+            </label>
           </div>
 
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={autoHadithEnabled}
-              onChange={onToggleAutoHadith}
-              className="sr-only peer"
-            />
-            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600" />
-          </label>
+          <div className="hidden">
+            <div className="flex items-start gap-2 bg-indigo-50/80 p-2.5 rounded-lg border border-indigo-100/80 text-indigo-900 text-xs">
+              <span className="text-base leading-none">📖</span>
+              <p className="leading-relaxed">
+                <strong className="font-semibold text-indigo-950">সম্পূর্ণ হাদিস নোটিফিকেশন:</strong> বুখারী, মুসলিম, রিয়াদুস সালেহীন, আল-আদাবুল মুফরাদ, শামায়েল ও ৪০ হাদিস সংকলনের হাজারো হাদিস থেকে রেন্ডমভাবে নোটিফিকেশনে পাঠানো হবে। উপর থেকে নোটিফিকেশন বারটি স্ক্রল করে নামালেই অ্যাপে না ঢুকে পুরো হাদিসটি সরাসরি পড়তে পারবেন।
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={async () => {
+                await NotificationService.requestPermission();
+                const hadith = NotificationService.testRandomHadithNotification();
+                onShowAlert(
+                  `সফল! নোটিফিকেশনে হাদিস পাঠানো হয়েছে:\n\n${hadith.title}\n\nফোন বা ব্রাউজারের ওপরের নোটিফিকেশন বারটি নিচে টান দিয়ে সম্পূর্ণ হাদিসটি পড়ুন (অ্যাপে ঢোকার প্রয়োজন নেই)।`,
+                  true
+                );
+              }}
+              className="w-full py-2 px-3 bg-gradient-to-r from-indigo-600 to-teal-700 hover:from-indigo-700 hover:to-teal-800 text-white rounded-lg text-xs font-bold transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer select-none"
+            >
+              <BellRing className="w-4 h-4" />
+              <span>একটি রেন্ডম হাদিস নোটিফিকেশন পাঠিয়ে টেস্ট করুন</span>
+            </button>
+          </div>
         </div>
 
         {/* Tauba & Zikir Reminder */}
@@ -461,7 +485,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         </div>
 
         {/* পাঁচ ওয়াক্ত ফরজ সালাত নোটিফিকেশন */}
-        <div className="bg-white p-5 rounded-2xl shadow-xs border border-emerald-100">
+        <div className="hidden">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-base font-bold text-gray-800 flex items-center">
               <span className="text-lg mr-2">🕌</span>
