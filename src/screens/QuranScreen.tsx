@@ -19,7 +19,11 @@ import {
   SlidersHorizontal,
   BookMarked,
   ChevronsDown,
-  Palette
+  Palette,
+  SkipBack,
+  SkipForward,
+  Square,
+  GripVertical
 } from 'lucide-react';
 import {
   ALL_SURAHS,
@@ -62,10 +66,41 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
   const [loadingAyahs, setLoadingAyahs] = useState<boolean>(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Audio Playback State
+  // Audio Playback & Repeater State (Screenshots 1 & 2)
   const [currentPlayingAyah, setCurrentPlayingAyah] = useState<number | null>(null);
   const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const [showRepeaterModal, setShowRepeaterModal] = useState<boolean>(false);
+  const [repeaterConfig, setRepeaterConfig] = useState<{
+    enabled: boolean;
+    fromSurah: number;
+    fromAyah: number;
+    toSurah: number;
+    toAyah: number;
+    repeatEachVerse: number | 'unlimited';
+    repeatAll: number | 'unlimited' | 'off';
+    speed: number;
+  }>(() => {
+    try {
+      const saved = localStorage.getItem('ibadat_quran_repeater');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {
+      enabled: false,
+      fromSurah: 1,
+      fromAyah: 1,
+      toSurah: 1,
+      toAyah: 7,
+      repeatEachVerse: 1,
+      repeatAll: 'unlimited',
+      speed: 1.0
+    };
+  });
+
+  const [repeaterDraft, setRepeaterDraft] = useState(repeaterConfig);
+  const verseRepeatCountRef = useRef<number>(1);
+  const allRepeatCountRef = useRef<number>(1);
 
   // Bookmarks & Ayah Interactions
   const [bookmarks, setBookmarks] = useState<QuranBookmark[]>(getBookmarks());
@@ -179,7 +214,60 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
     };
   }, [selectedSurah]);
 
-  // Audio Playback Handlers
+  // Repeater helper metas
+  const fromSurahMeta = useMemo(() => {
+    return ALL_SURAHS.find((s) => s.number === repeaterDraft.fromSurah) || ALL_SURAHS[0];
+  }, [repeaterDraft.fromSurah]);
+
+  const toSurahMeta = useMemo(() => {
+    return ALL_SURAHS.find((s) => s.number === repeaterDraft.toSurah) || ALL_SURAHS[0];
+  }, [repeaterDraft.toSurah]);
+
+  const handleFromSurahChange = (num: number) => {
+    const meta = ALL_SURAHS.find((s) => s.number === num);
+    const maxAyahs = meta?.numberOfAyahs || 7;
+    setRepeaterDraft((prev) => {
+      let nextToSurah = prev.toSurah;
+      let nextToAyah = prev.toAyah;
+      if (nextToSurah < num) {
+        nextToSurah = num;
+        nextToAyah = maxAyahs;
+      }
+      return {
+        ...prev,
+        fromSurah: num,
+        fromAyah: 1,
+        toSurah: nextToSurah,
+        toAyah: nextToAyah
+      };
+    });
+  };
+
+  const handleFromAyahChange = (ayahNum: number) => {
+    setRepeaterDraft((prev) => {
+      let nextToAyah = prev.toAyah;
+      if (prev.fromSurah === prev.toSurah && nextToAyah < ayahNum) {
+        nextToAyah = ayahNum;
+      }
+      return {
+        ...prev,
+        fromAyah: ayahNum,
+        toAyah: nextToAyah
+      };
+    });
+  };
+
+  const handleToSurahChange = (num: number) => {
+    const meta = ALL_SURAHS.find((s) => s.number === num);
+    const maxAyahs = meta?.numberOfAyahs || 7;
+    setRepeaterDraft((prev) => ({
+      ...prev,
+      toSurah: num,
+      toAyah: maxAyahs
+    }));
+  };
+
+  // Audio Playback & Repeater Engine
   const stopAudio = () => {
     if (audioRef.current) {
       audioRef.current.pause();
@@ -187,16 +275,13 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
     }
     setIsPlayingAudio(false);
     setCurrentPlayingAyah(null);
+    verseRepeatCountRef.current = 1;
+    allRepeatCountRef.current = 1;
   };
 
-  const playAyahAudio = (ayah: Ayah, singleOnly: boolean = false) => {
+  const playSingleAyahAudio = (ayah: Ayah, surahNumber: number = selectedSurah?.number || 1) => {
     if (!ayah.audioUrl) {
       onShowAlert?.('এই আয়াতের অডিও পাওয়া যায়নি।', false);
-      return;
-    }
-
-    if (currentPlayingAyah === ayah.numberInSurah && isPlayingAudio) {
-      stopAudio();
       return;
     }
 
@@ -205,11 +290,15 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
     }
 
     audioRef.current.src = ayah.audioUrl;
+    audioRef.current.playbackRate = repeaterConfig.speed || 1.0;
     audioRef.current
       .play()
       .then(() => {
         setIsPlayingAudio(true);
         setCurrentPlayingAyah(ayah.numberInSurah);
+        setTimeout(() => {
+          document.getElementById(`ayah-${ayah.numberInSurah}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
       })
       .catch((e) => {
         console.warn("Audio playback error:", e);
@@ -218,22 +307,172 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
       });
 
     audioRef.current.onended = () => {
-      if (singleOnly) {
-        // Stop playback after this single ayah (exact user request)
+      handleAudioEnded(surahNumber, ayah.numberInSurah);
+    };
+  };
+
+  const playVerse = async (surahNumber: number, ayahNumber: number) => {
+    // If not in current selectedSurah, load that Surah
+    if (selectedSurah?.number !== surahNumber) {
+      const nextMeta = ALL_SURAHS.find((s) => s.number === surahNumber);
+      if (nextMeta) {
+        setSelectedSurah(nextMeta);
+      }
+      const loadedAyahs = await fetchSurahAyahs(surahNumber);
+      setAyahs(loadedAyahs);
+      const target = loadedAyahs.find((a) => a.numberInSurah === ayahNumber) || loadedAyahs[ayahNumber - 1];
+      if (target) {
+        playSingleAyahAudio(target, surahNumber);
+      }
+      return;
+    }
+
+    const target = ayahs.find((a) => a.numberInSurah === ayahNumber) || ayahs[ayahNumber - 1];
+    if (target) {
+      playSingleAyahAudio(target, surahNumber);
+    }
+  };
+
+  const handleAudioEnded = (surahNumber: number, ayahNumber: number) => {
+    if (!repeaterConfig.enabled) {
+      // Standard sequential playback in current surah
+      const nextIndex = ayahNumber;
+      if (nextIndex < ayahs.length) {
+        playSingleAyahAudio(ayahs[nextIndex], surahNumber);
+      } else {
         setIsPlayingAudio(false);
         setCurrentPlayingAyah(null);
-      } else {
-        // Auto play next ayah in surah if available
-        const nextIndex = ayah.numberInSurah;
-        if (nextIndex < ayahs.length) {
-          const nextAyah = ayahs[nextIndex];
-          playAyahAudio(nextAyah, false);
-        } else {
-          setIsPlayingAudio(false);
-          setCurrentPlayingAyah(null);
-        }
       }
+      return;
+    }
+
+    // 1. Repeat current verse check
+    if (repeaterConfig.repeatEachVerse === 'unlimited') {
+      playVerse(surahNumber, ayahNumber);
+      return;
+    }
+
+    const targetVerseRepeats = typeof repeaterConfig.repeatEachVerse === 'number' ? repeaterConfig.repeatEachVerse : 1;
+    if (verseRepeatCountRef.current < targetVerseRepeats) {
+      verseRepeatCountRef.current += 1;
+      playVerse(surahNumber, ayahNumber);
+      return;
+    }
+
+    // Reset verse count for next verse
+    verseRepeatCountRef.current = 1;
+
+    // 2. Check if reached end of range
+    const isAtEndOfRange =
+      surahNumber === repeaterConfig.toSurah && ayahNumber === repeaterConfig.toAyah;
+
+    if (isAtEndOfRange) {
+      if (repeaterConfig.repeatAll === 'off') {
+        stopAudio();
+        onShowAlert?.('রিপিট সম্পন্ন হয়েছে।', true);
+        return;
+      }
+
+      if (repeaterConfig.repeatAll === 'unlimited') {
+        allRepeatCountRef.current += 1;
+        playVerse(repeaterConfig.fromSurah, repeaterConfig.fromAyah);
+        return;
+      }
+
+      const targetAllRepeats = typeof repeaterConfig.repeatAll === 'number' ? repeaterConfig.repeatAll : 1;
+      if (allRepeatCountRef.current < targetAllRepeats) {
+        allRepeatCountRef.current += 1;
+        playVerse(repeaterConfig.fromSurah, repeaterConfig.fromAyah);
+        return;
+      }
+
+      stopAudio();
+      onShowAlert?.('রিপিট সম্পন্ন হয়েছে।', true);
+      return;
+    }
+
+    // 3. Move to next verse within range
+    const surahMeta = ALL_SURAHS.find((s) => s.number === surahNumber);
+    const totalAyahs = surahMeta?.numberOfAyahs || ayahs.length;
+
+    if (ayahNumber < totalAyahs) {
+      playVerse(surahNumber, ayahNumber + 1);
+    } else if (surahNumber < repeaterConfig.toSurah) {
+      playVerse(surahNumber + 1, 1);
+    } else {
+      stopAudio();
+    }
+  };
+
+  const handlePrevAyah = () => {
+    const currentAyah = currentPlayingAyah || 1;
+    const currentSurah = selectedSurah?.number || 1;
+    if (currentAyah > 1) {
+      playVerse(currentSurah, currentAyah - 1);
+    } else if (currentSurah > 1) {
+      const prevSurah = ALL_SURAHS.find((s) => s.number === currentSurah - 1);
+      if (prevSurah) {
+        playVerse(prevSurah.number, prevSurah.numberOfAyahs);
+      }
+    }
+  };
+
+  const handleNextAyah = () => {
+    const currentAyah = currentPlayingAyah || 1;
+    const currentSurah = selectedSurah?.number || 1;
+    const total = selectedSurah?.numberOfAyahs || ayahs.length;
+    if (currentAyah < total) {
+      playVerse(currentSurah, currentAyah + 1);
+    } else if (currentSurah < 114) {
+      playVerse(currentSurah + 1, 1);
+    }
+  };
+
+  const handleTogglePlay = () => {
+    if (isPlayingAudio) {
+      if (audioRef.current) audioRef.current.pause();
+      setIsPlayingAudio(false);
+    } else {
+      const startAyah = currentPlayingAyah || (repeaterConfig.enabled ? repeaterConfig.fromAyah : 1);
+      const startSurah = repeaterConfig.enabled ? repeaterConfig.fromSurah : (selectedSurah?.number || 1);
+      playVerse(startSurah, startAyah);
+    }
+  };
+
+  const handleSaveAndApplyRepeater = () => {
+    if (
+      repeaterDraft.fromSurah > repeaterDraft.toSurah ||
+      (repeaterDraft.fromSurah === repeaterDraft.toSurah && repeaterDraft.fromAyah > repeaterDraft.toAyah)
+    ) {
+      onShowAlert?.('শুরুর আয়াত শেষের আয়াতের চেয়ে বেশি হতে পারে না।', false);
+      return;
+    }
+
+    const updated = {
+      ...repeaterDraft,
+      enabled: true
     };
+    setRepeaterConfig(updated);
+    setRepeaterDraft(updated);
+    try {
+      localStorage.setItem('ibadat_quran_repeater', JSON.stringify(updated));
+    } catch {}
+
+    if (audioRef.current) {
+      audioRef.current.playbackRate = updated.speed;
+    }
+
+    setShowRepeaterModal(false);
+    verseRepeatCountRef.current = 1;
+    allRepeatCountRef.current = 1;
+
+    onShowAlert?.(
+      `রিপিটার সক্রিয়: সূরা ${updated.fromSurah}:${updated.fromAyah} থেকে ${updated.toSurah}:${updated.toAyah} (স্পিড: ${updated.speed}x)`,
+      true
+    );
+
+    // Auto-start repeating from the configured 'From' verse
+    playVerse(updated.fromSurah, updated.fromAyah);
   };
 
   // Bookmark handlers
@@ -558,9 +797,9 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
                     </div>
                   </div>
 
-                  {/* Bengali Transliteration (উচ্চারণ) - Vibrant Teal/Cyan */}
+                  {/* Bengali Transliteration (উচ্চারণ) - Balanced Soft Teal */}
                   {showTransliteration && (ayah.transliterationBn || ayah.textArabic) && (
-                    <div className="text-[#2dd4bf] text-[13px] leading-relaxed font-normal pt-0.5 pl-1">
+                    <div className="text-[#3ea89b] text-[13px] leading-relaxed font-normal pt-0.5 pl-1">
                       {ayah.transliterationBn || arabicToBengaliPronunciation(ayah.textArabic)}
                     </div>
                   )}
@@ -614,40 +853,267 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
           )}
         </div>
 
-        {/* Floating Mini Audio Bar (Sticky at bottom when playing) */}
-        {isPlayingAudio && currentPlayingAyah && (
-          <div className="fixed bottom-20 left-4 right-4 max-w-[400px] mx-auto z-40 bg-[#121c17]/95 border border-[#2b3e34] shadow-2xl rounded-2xl p-3 backdrop-blur-md flex items-center justify-between">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-9 h-9 rounded-xl bg-teal-900/60 border border-teal-500/40 flex items-center justify-center text-[#2dd4bf]">
-                <Volume2 className="w-4 h-4 animate-pulse" />
-              </div>
-              <div>
-                <div className="text-xs font-bold text-white">
-                  সূরা {selectedSurah.banglaName} - আয়াত {currentPlayingAyah}
-                </div>
-                <div className="text-[10px] text-slate-400">
-                  মিশারী রাশিদ আল-আফাসী
-                </div>
-              </div>
+        {/* Docked Quran Audio Player Bar (Matching User Screenshot 1) */}
+        {selectedSurah && (
+          <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#0e1412]/95 border-t border-[#1a251e] shadow-2xl backdrop-blur-md pt-2.5 pb-4 px-4 flex flex-col items-center max-w-[420px] mx-auto">
+            {/* Top Pill with Surah & Verse info */}
+            <div className="flex items-center justify-center gap-2.5 px-4 py-1.5 rounded-full bg-[#18211d] border border-[#2b3a32] shadow-md text-xs font-medium text-slate-200">
+              <GripVertical className="w-3.5 h-3.5 text-slate-500 opacity-60 shrink-0" />
+              <span className="tracking-wide select-none">
+                QS. {selectedSurah.englishName} {selectedSurah.number}: Verse {currentPlayingAyah || 1}
+              </span>
+              <GripVertical className="w-3.5 h-3.5 text-slate-500 opacity-60 shrink-0" />
             </div>
 
-            <div className="flex items-center space-x-1">
+            {/* Player Controls Row (Settings, Prev, Play/Pause, Next, Stop) */}
+            <div className="flex items-center justify-between w-full max-w-xs px-2 pt-1 text-slate-300">
               <button
-                onClick={stopAudio}
-                className="p-2 text-slate-300 hover:text-white rounded-lg active:bg-slate-800 transition"
-                title="থামান"
-              >
-                <Pause className="w-5 h-5 fill-current text-[#2dd4bf]" />
-              </button>
-              <button
+                type="button"
                 onClick={() => {
-                  stopAudio();
+                  setRepeaterDraft({
+                    ...repeaterConfig,
+                    fromSurah: selectedSurah.number,
+                    fromAyah: currentPlayingAyah || 1,
+                    toSurah: selectedSurah.number,
+                    toAyah: selectedSurah.numberOfAyahs
+                  });
+                  setShowRepeaterModal(true);
                 }}
-                className="p-2 text-slate-400 hover:text-red-400 rounded-lg active:bg-slate-800 transition"
-                title="বন্ধ করুন"
+                className="p-2 hover:text-white active:scale-95 transition cursor-pointer text-slate-300"
+                title="Set Repeater / রিপিট ও স্পিড সেটিংস"
               >
-                <X className="w-4 h-4" />
+                <SettingsIcon className="w-5 h-5 text-slate-300 hover:rotate-45 transition-transform" />
               </button>
+
+              <button
+                type="button"
+                onClick={handlePrevAyah}
+                className="p-2 hover:text-white active:scale-95 transition cursor-pointer text-slate-300"
+                title="Previous Verse"
+              >
+                <SkipBack className="w-5 h-5 fill-current" />
+              </button>
+
+              <button
+                type="button"
+                onClick={handleTogglePlay}
+                className="p-2.5 hover:text-teal-300 active:scale-95 transition cursor-pointer text-white"
+                title={isPlayingAudio ? 'Pause' : 'Play'}
+              >
+                {isPlayingAudio ? (
+                  <Pause className="w-7 h-7 fill-current text-white hover:text-teal-300" />
+                ) : (
+                  <Play className="w-7 h-7 fill-current text-white hover:text-teal-300 ml-0.5" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleNextAyah}
+                className="p-2 hover:text-white active:scale-95 transition cursor-pointer text-slate-300"
+                title="Next Verse"
+              >
+                <SkipForward className="w-5 h-5 fill-current" />
+              </button>
+
+              <button
+                type="button"
+                onClick={stopAudio}
+                className="p-2 hover:text-red-400 active:scale-95 transition cursor-pointer text-slate-300"
+                title="Stop"
+              >
+                <Square className="w-5 h-5 fill-current text-slate-300 hover:text-red-400" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Set Repeater Modal (Matching User Screenshot 2) */}
+        {showRepeaterModal && (
+          <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4 backdrop-blur-xs">
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-[#19231f] border border-[#2c3d33] rounded-2xl w-full max-w-sm p-5 shadow-2xl text-slate-100 space-y-4"
+            >
+              {/* Title */}
+              <h3 className="text-lg font-bold text-white tracking-wide">
+                Set Repeater
+              </h3>
+
+              {/* 1. From Section */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-slate-300">From</label>
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <select
+                      value={repeaterDraft.fromSurah}
+                      onChange={(e) => handleFromSurahChange(parseInt(e.target.value, 10))}
+                      className="w-full appearance-none bg-[#131b17] border border-[#27382e] text-[#2dd4bf] rounded-xl pl-3 pr-7 py-2 text-xs font-semibold focus:outline-none focus:border-teal-500 cursor-pointer"
+                    >
+                      {ALL_SURAHS.map((s) => (
+                        <option key={s.number} value={s.number} className="bg-[#18221d] text-slate-200">
+                          {s.number}. {s.englishName}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#2dd4bf] text-[10px]">
+                      ▼
+                    </div>
+                  </div>
+
+                  <div className="relative w-24">
+                    <select
+                      value={repeaterDraft.fromAyah}
+                      onChange={(e) => handleFromAyahChange(parseInt(e.target.value, 10))}
+                      className="w-full appearance-none bg-[#131b17] border border-[#27382e] text-[#2dd4bf] rounded-xl pl-3 pr-6 py-2 text-xs font-semibold focus:outline-none focus:border-teal-500 cursor-pointer text-center"
+                    >
+                      {Array.from({ length: fromSurahMeta.numberOfAyahs }, (_, i) => i + 1).map((n) => (
+                        <option key={n} value={n} className="bg-[#18221d] text-slate-200">
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[#2dd4bf] text-[10px]">
+                      ▼
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. To Section */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-slate-300">To</label>
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <select
+                      value={repeaterDraft.toSurah}
+                      onChange={(e) => handleToSurahChange(parseInt(e.target.value, 10))}
+                      className="w-full appearance-none bg-[#131b17] border border-[#27382e] text-[#2dd4bf] rounded-xl pl-3 pr-7 py-2 text-xs font-semibold focus:outline-none focus:border-teal-500 cursor-pointer"
+                    >
+                      {ALL_SURAHS.map((s) => (
+                        <option key={s.number} value={s.number} className="bg-[#18221d] text-slate-200">
+                          {s.number}. {s.englishName}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#2dd4bf] text-[10px]">
+                      ▼
+                    </div>
+                  </div>
+
+                  <div className="relative w-24">
+                    <select
+                      value={repeaterDraft.toAyah}
+                      onChange={(e) => setRepeaterDraft((prev) => ({ ...prev, toAyah: parseInt(e.target.value, 10) }))}
+                      className="w-full appearance-none bg-[#131b17] border border-[#27382e] text-[#2dd4bf] rounded-xl pl-3 pr-6 py-2 text-xs font-semibold focus:outline-none focus:border-teal-500 cursor-pointer text-center"
+                    >
+                      {Array.from({ length: toSurahMeta.numberOfAyahs }, (_, i) => i + 1).map((n) => (
+                        <option key={n} value={n} className="bg-[#18221d] text-slate-200">
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[#2dd4bf] text-[10px]">
+                      ▼
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Repeat Each Verse */}
+              <div className="flex items-center justify-between py-2 border-t border-[#233328]">
+                <span className="text-xs font-medium text-slate-200">Repeat Each Verse</span>
+                <div className="relative">
+                  <select
+                    value={repeaterDraft.repeatEachVerse}
+                    onChange={(e) => {
+                      const val = e.target.value === 'unlimited' ? 'unlimited' : parseInt(e.target.value, 10);
+                      setRepeaterDraft((prev) => ({ ...prev, repeatEachVerse: val }));
+                    }}
+                    className="appearance-none bg-[#131b17] border border-[#27382e] text-[#2dd4bf] rounded-xl pl-3 pr-7 py-1.5 text-xs font-bold focus:outline-none cursor-pointer"
+                  >
+                    <option value="1" className="bg-[#18221d] text-slate-200">1 x</option>
+                    <option value="2" className="bg-[#18221d] text-slate-200">2 x</option>
+                    <option value="3" className="bg-[#18221d] text-slate-200">3 x</option>
+                    <option value="5" className="bg-[#18221d] text-slate-200">5 x</option>
+                    <option value="7" className="bg-[#18221d] text-slate-200">7 x</option>
+                    <option value="10" className="bg-[#18221d] text-slate-200">10 x</option>
+                    <option value="20" className="bg-[#18221d] text-slate-200">20 x</option>
+                    <option value="unlimited" className="bg-[#18221d] text-slate-200">∞</option>
+                  </select>
+                  <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#2dd4bf] text-[10px]">
+                    ▼
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Repeat All of Them */}
+              <div className="flex items-center justify-between py-2 border-t border-[#233328]">
+                <span className="text-xs font-medium text-slate-200">Repeat All of Them</span>
+                <div className="relative">
+                  <select
+                    value={repeaterDraft.repeatAll}
+                    onChange={(e) => {
+                      const val = e.target.value === 'unlimited' || e.target.value === 'off' ? e.target.value : parseInt(e.target.value, 10);
+                      setRepeaterDraft((prev) => ({ ...prev, repeatAll: val }));
+                    }}
+                    className="appearance-none bg-[#131b17] border border-[#27382e] text-[#2dd4bf] rounded-xl pl-3 pr-7 py-1.5 text-xs font-bold focus:outline-none cursor-pointer"
+                  >
+                    <option value="unlimited" className="bg-[#18221d] text-slate-200">∞</option>
+                    <option value="1" className="bg-[#18221d] text-slate-200">1 x</option>
+                    <option value="2" className="bg-[#18221d] text-slate-200">2 x</option>
+                    <option value="3" className="bg-[#18221d] text-slate-200">3 x</option>
+                    <option value="5" className="bg-[#18221d] text-slate-200">5 x</option>
+                    <option value="10" className="bg-[#18221d] text-slate-200">10 x</option>
+                    <option value="off" className="bg-[#18221d] text-slate-200">Off</option>
+                  </select>
+                  <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#2dd4bf] text-[10px]">
+                    ▼
+                  </div>
+                </div>
+              </div>
+
+              {/* 5. Speed of Murattal */}
+              <div className="flex items-center justify-between py-2 border-t border-[#233328]">
+                <span className="text-xs font-medium text-slate-200">Speed of Murattal</span>
+                <div className="relative">
+                  <select
+                    value={repeaterDraft.speed}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      setRepeaterDraft((prev) => ({ ...prev, speed: val }));
+                    }}
+                    className="appearance-none bg-[#131b17] border border-[#27382e] text-[#2dd4bf] rounded-xl pl-3 pr-7 py-1.5 text-xs font-bold focus:outline-none cursor-pointer"
+                  >
+                    <option value="0.75" className="bg-[#18221d] text-slate-200">Slow</option>
+                    <option value="0.85" className="bg-[#18221d] text-slate-200">Slightly Slow</option>
+                    <option value="1" className="bg-[#18221d] text-slate-200">Default</option>
+                    <option value="1.15" className="bg-[#18221d] text-slate-200">Slightly Fast</option>
+                    <option value="1.25" className="bg-[#18221d] text-slate-200">Fast</option>
+                  </select>
+                  <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#2dd4bf] text-[10px]">
+                    ▼
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer Actions */}
+              <div className="flex items-center justify-end gap-5 pt-3 border-t border-[#233328]">
+                <button
+                  type="button"
+                  onClick={() => setShowRepeaterModal(false)}
+                  className="text-xs font-bold text-slate-400 hover:text-white transition cursor-pointer tracking-wider"
+                >
+                  CANCEL
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveAndApplyRepeater}
+                  className="text-xs font-bold text-teal-400 hover:text-teal-300 transition cursor-pointer tracking-wider"
+                >
+                  OK
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -816,7 +1282,8 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
                 {/* 1. Play Murattal (Plays ONLY that specific ayah) */}
                 <button
                   onClick={() => {
-                    playAyahAudio(selectedAyahForSheet, true);
+                    playSingleAyahAudio(selectedAyahForSheet, selectedSurah.number);
+                    setSelectedAyahForSheet(null);
                   }}
                   className="w-full flex items-center gap-4 px-4 py-3.5 text-left rounded-xl hover:bg-[#1a251e] active:bg-[#203027] transition cursor-pointer group"
                 >

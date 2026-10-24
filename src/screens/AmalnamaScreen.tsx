@@ -17,7 +17,7 @@ interface AmalnamaScreenProps {
 
   // Salah props
   appStats: AppStats;
-  yesterdayChampion: ChampionInfo | null;
+  yesterdayChampion?: ChampionInfo | null;
   salahLog: Record<string, boolean>;
   nawafilLog: Record<string, boolean>;
   reminders: Record<string, ReminderSetting>;
@@ -50,7 +50,6 @@ export const AmalnamaScreen: React.FC<AmalnamaScreenProps> = ({
   onGoToToday,
   onOpenSettings,
   appStats,
-  yesterdayChampion,
   salahLog,
   nawafilLog,
   reminders,
@@ -249,7 +248,6 @@ export const AmalnamaScreen: React.FC<AmalnamaScreenProps> = ({
         {currentSubTab === 'salah' && (
           <SalahScreen
             appStats={appStats}
-            yesterdayChampion={yesterdayChampion}
             salahLog={salahLog}
             nawafilLog={nawafilLog}
             reminders={reminders}
