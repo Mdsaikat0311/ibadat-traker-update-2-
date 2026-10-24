@@ -971,17 +971,16 @@ export class IbadatRepository {
     // - Highest performers with identical counts share the exact same rank (e.g. 7/7 users all get #1)
     // - Down through ranks 1, 2, 3 multiple users can share the same rank (e.g. all with 6 get #2, all with 5 get #3)
     // - After top 3, ranks continue sequentially (#4, #5, #6...)
-    // - If user has 0 (no amount performed), they get the lowest/last rank
+    // - If observance count is 0 (has not performed even once), rank is 0 (#0)
     const calcCardRank = (myScore: number, otherScores: number[]): number => {
-      const allScores = [myScore, ...otherScores];
-      // Unique scores sorted descending: e.g. [7, 6, 5, 0]
-      const uniqueDescending = Array.from(new Set(allScores)).sort((a, b) => b - a);
-
-      // If user has done 0 days (no amount)
+      // If user has done 0 days (not performed even once), their rank is 0
       if (myScore === 0) {
-        // Return the last rank (bottom position)
-        return Math.max(1, uniqueDescending.length);
+        return 0;
       }
+
+      const allScores = [myScore, ...otherScores];
+      // Only users who have actually performed the deed (> 0) compete for ranks
+      const uniqueDescending = Array.from(new Set(allScores.filter((s) => s > 0))).sort((a, b) => b - a);
 
       const idx = uniqueDescending.indexOf(myScore);
       return idx !== -1 ? idx + 1 : 1;
@@ -1257,6 +1256,7 @@ export class IbadatRepository {
 
     // Dense ranking: Equal scores get the identical rank;
     // next score group gets the next sequential rank (1, 1, 1 -> 2, 2 -> 3...)
+    // Users with 0 points (have not performed) get rank 0
     let currentRank = 1;
     return list.map((item, idx) => {
       if (idx > 0 && item.points < list[idx - 1].points) {
@@ -1264,7 +1264,7 @@ export class IbadatRepository {
       }
       return {
         ...item,
-        rank: currentRank
+        rank: item.points === 0 ? 0 : currentRank
       };
     });
   }

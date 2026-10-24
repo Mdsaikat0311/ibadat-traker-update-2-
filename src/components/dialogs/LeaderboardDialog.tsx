@@ -132,7 +132,13 @@ export const LeaderboardDialog: React.FC<LeaderboardDialogProps> = ({
                 </div>
               );
 
-              if (rank === 1) {
+              if (rank === 0 || u.points === 0) {
+                rankBadge = (
+                  <div className="w-7 h-7 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center font-bold text-xs border border-gray-200 shrink-0" title="কোনো পয়েন্ট নেই (#0)">
+                    #0
+                  </div>
+                );
+              } else if (rank === 1) {
                 rankBadge = (
                   <div className="w-7 h-7 rounded-full bg-amber-100 border border-amber-300 flex items-center justify-center shadow-xs shrink-0 text-xs font-black text-amber-800">
                     <Crown className="w-4 h-4 text-amber-500 fill-amber-500 mr-0.5" />

@@ -15,11 +15,22 @@ export const TaskStatsRow: React.FC<TaskStatsRowProps> = ({ stats }) => {
   const lifePct = stats.totalLifetimeDays > 0 ? stats.lifetime / stats.totalLifetimeDays : 0;
   const lifeClass = lifePct >= 0.5 ? 'text-green-600' : 'text-red-500';
 
-  const weekRank = stats.weekRank ?? 1;
-  const monthRank = stats.monthRank ?? 1;
-  const lifetimeRank = stats.lifetimeRank ?? 1;
+  const weekRank = stats.week === 0 ? 0 : (stats.weekRank ?? 1);
+  const monthRank = stats.month === 0 ? 0 : (stats.monthRank ?? 1);
+  const lifetimeRank = stats.lifetime === 0 ? 0 : (stats.lifetimeRank ?? 1);
 
   const renderBadge = (rank: number, label: string) => {
+    if (rank === 0) {
+      return (
+        <span
+          className="inline-flex items-center ml-0.5 px-1 py-0.5 rounded-full text-[8.5px] sm:text-[9.5px] font-extrabold border shadow-2xs leading-none shrink-0 bg-gray-100 text-gray-500 border-gray-300"
+          title={`${label}: #0 (কোনো পালন নেই)`}
+        >
+          #0
+        </span>
+      );
+    }
+
     let icon = '';
     let badgeStyle = 'bg-gray-100 text-gray-600 border-gray-200';
 

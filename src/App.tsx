@@ -582,11 +582,21 @@ export const App: React.FC = () => {
   // User Rank resolver (uses live Firebase rank if available, else local)
   const getMyRank = (metric: string): number => {
     if (!currentUser) return 0;
-    if (userRanks[metric]) {
+    const stats = repository.getAppStats(repository.getTodayKey());
+    let currentScore = stats.totalLifetimePoints;
+    if (metric === "todayPoints") currentScore = stats.todayPoints;
+    else if (metric === "yesterdayPoints") currentScore = stats.yesterdayPoints;
+    else if (metric === "totalPoints7Days") currentScore = stats.totalPoints7Days;
+    else if (metric === "totalPoints30Days") currentScore = stats.totalPoints30Days;
+    else if (metric === "highScore30Days") currentScore = stats.highScore30Days;
+    if (currentScore === 0) return 0;
+
+    if (userRanks[metric] !== undefined && userRanks[metric] !== null) {
       return userRanks[metric];
     }
     const list = repository.getLeaderboard(metric);
-    return list.find((u) => u.isCurrentUser)?.rank || 1;
+    const found = list.find((u) => u.isCurrentUser);
+    return found ? found.rank : 0;
   };
 
   // Header display calculations

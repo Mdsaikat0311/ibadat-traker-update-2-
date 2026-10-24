@@ -269,6 +269,7 @@ export async function getTopUsersByMetric(
 
     // Dense ranking: Equal scores get the identical rank;
     // next score group gets the next sequential rank (1, 1, 1 -> 2, 2 -> 3...)
+    // Users with 0 points (have not performed) get rank 0
     let currentRank = 1;
     const rankedUsers = processedUsers.map((u, idx) => {
       if (idx > 0 && u.points < processedUsers[idx - 1].points) {
@@ -278,7 +279,7 @@ export async function getTopUsersByMetric(
         id: u.id,
         name: u.name,
         points: u.points,
-        rank: currentRank,
+        rank: u.points === 0 ? 0 : currentRank,
         isCurrentUser: currentUid === u.id
       };
     });

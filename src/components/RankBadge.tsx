@@ -6,9 +6,17 @@ interface RankBadgeProps {
 }
 
 export const RankBadge: React.FC<RankBadgeProps> = ({ rank }) => {
-  if (!rank || rank <= 0) return null;
+  if (rank === undefined || rank === null) return null;
 
   const commonClasses = "flex items-center justify-center gap-1 px-2 py-0.5 rounded-full shadow-xs border backdrop-blur-xs transition-transform hover:scale-105 cursor-default";
+
+  if (rank === 0) {
+    return (
+      <div className={`${commonClasses} bg-gray-50 border-gray-200`} title="কোনো পয়েন্ট নেই (#0)">
+        <span className="text-xs font-bold text-gray-500">#0</span>
+      </div>
+    );
+  }
 
   if (rank === 1) {
     return (
