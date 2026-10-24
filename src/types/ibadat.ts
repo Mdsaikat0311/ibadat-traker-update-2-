@@ -81,9 +81,16 @@ export interface AppStats {
   totalLifetimePoints: number;
 }
 
+export interface ChampionUser {
+  id?: string;
+  name: string;
+  points: number;
+}
+
 export interface ChampionInfo {
   name: string;
   points: number;
+  users?: ChampionUser[];
 }
 
 export interface CommunityUserState {

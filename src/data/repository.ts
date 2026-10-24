@@ -511,6 +511,13 @@ export class IbadatRepository {
     const state = this.getAppState();
     if (!state.pointsHistory) state.pointsHistory = {};
     state.pointsHistory[dateKey] = points;
+    // Clean up alternate date keys so old higher values cannot linger or shadow
+    const alternateKeys = this.getAlternateDateKeys(dateKey);
+    for (const alt of alternateKeys) {
+      if (alt !== dateKey) {
+        delete state.pointsHistory[alt];
+      }
+    }
     this.saveAppState(state);
   }
 
@@ -747,6 +754,26 @@ export class IbadatRepository {
     }
   }
 
+  // Check if this date has any recorded task logs in state
+  hasLogsForDate(dateKey: string): boolean {
+    const state = this.getAppState();
+    const categories = ['salah', 'nawafil', 'dhikr', 'morning', 'nightly', 'quran', 'specialAmal'];
+    const alternateKeys = this.getAlternateDateKeys(dateKey);
+    const allKeys = [dateKey, ...alternateKeys];
+
+    for (const cat of categories) {
+      const logMap = state[`${cat}Log`];
+      if (logMap && typeof logMap === 'object') {
+        for (const k of allKeys) {
+          if (logMap[k] !== undefined && logMap[k] !== null) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
   // Points Calculation matching the user's logic exactly
   calculatePoints(dateKey: string): number {
     let points = 0;
@@ -803,7 +830,13 @@ export class IbadatRepository {
       if (quran[q.key]) points += q.point;
     });
 
-    // Check account pointsHistory (Firebase or local session history)
+    // If this date has logged task entries, the checklist sum is the definitive live points
+    // (allowing points to accurately increase when checked and decrease when unchecked)
+    if (this.hasLogsForDate(dateKey)) {
+      return points;
+    }
+
+    // Fallback: If no checklist logs exist for this historical date, check pointsHistory
     const state = this.getAppState();
     const history = state.pointsHistory || {};
     let historyPoints = Number(history[dateKey]) || 0;
@@ -813,17 +846,28 @@ export class IbadatRepository {
       if (altPoints > historyPoints) historyPoints = altPoints;
     }
 
-    return Math.max(points, historyPoints);
+    return points > 0 ? points : historyPoints;
   }
 
   getLifetimeDays(): number {
     const startStr = this.getLifetimeStartDate();
-    const startDate = new Date(startStr);
+    let startDate: Date;
+    try {
+      const parts = startStr.split('-');
+      if (parts.length === 3) {
+        startDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10), 0, 0, 0, 0);
+      } else {
+        startDate = new Date(startStr);
+        startDate.setHours(0, 0, 0, 0);
+      }
+    } catch {
+      startDate = new Date();
+      startDate.setHours(0, 0, 0, 0);
+    }
     const today = new Date();
-    startDate.setHours(0, 0, 0, 0);
     today.setHours(0, 0, 0, 0);
     const ONE_DAY = 1000 * 60 * 60 * 24;
-    const diff = Math.round(Math.abs(today.getTime() - startDate.getTime()) / ONE_DAY);
+    const diff = Math.round((today.getTime() - startDate.getTime()) / ONE_DAY);
     const days = diff + 1;
     return days < 1 ? 1 : days;
   }
@@ -831,7 +875,8 @@ export class IbadatRepository {
   getUserDeedCounts(
     userFullState: any,
     category: string,
-    taskKey: string
+    taskKey: string,
+    customStartStr?: string
   ): { week: number; month: number; lifetime: number } {
     if (!userFullState || typeof userFullState !== 'object') {
       return { week: 0, month: 0, lifetime: 0 };
@@ -840,11 +885,24 @@ export class IbadatRepository {
     const logMap = userFullState[`${category}Log`] || {};
     let week = 0;
     let month = 0;
-    let lifetime = 0;
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    // 1. Weekly: exactly the last 7 calendar days (today and 6 days prior)
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const iso = this.formatIsoDate(d);
+      const alt = d.toDateString();
+
+      const done = Boolean(logMap[iso]?.[taskKey] || logMap[alt]?.[taskKey]);
+      if (done) {
+        week++;
+      }
+    }
+
+    // 2. Monthly: exactly the last 30 calendar days (today and 29 days prior)
     for (let i = 0; i < 30; i++) {
       const d = new Date(today);
       d.setDate(today.getDate() - i);
@@ -853,48 +911,45 @@ export class IbadatRepository {
 
       const done = Boolean(logMap[iso]?.[taskKey] || logMap[alt]?.[taskKey]);
       if (done) {
-        if (i < 7) week++;
         month++;
       }
     }
 
-    if (typeof logMap === 'object') {
-      const todayIso = this.formatIsoDate(today);
+    // 3. Lifetime: unique calendar days from lifetimeStartDate (or account creation) up to today
+    const startStr = customStartStr || userFullState.lifetimeStartDate || this.getLifetimeStartDate();
+    const todayIso = this.formatIsoDate(today);
+    const seenDoneDates = new Set<string>();
+
+    if (logMap && typeof logMap === 'object') {
       Object.entries(logMap).forEach(([dateStr, dayLog]: [string, any]) => {
         if (dayLog && typeof dayLog === 'object' && dayLog[taskKey]) {
-          if (dateStr <= todayIso || dateStr.length > 10) {
-            lifetime++;
+          let iso = '';
+          if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+            iso = dateStr;
+          } else {
+            try {
+              const d = new Date(dateStr);
+              if (!isNaN(d.getTime())) iso = this.formatIsoDate(d);
+            } catch {}
+          }
+          if (iso && iso >= startStr && iso <= todayIso) {
+            seenDoneDates.add(iso);
           }
         }
       });
     }
 
-    lifetime = Math.max(lifetime, month);
+    const lifetime = seenDoneDates.size;
 
     return { week, month, lifetime };
   }
 
   getTaskCompletionStats(category: string, taskKey: string): TaskStats {
-    const totalDays = this.getLifetimeDays();
-    let weekCount = 0;
-    let monthCount = 0;
-    let lifetimeCount = 0;
-
-    const maxCheck = Math.min(totalDays, 365);
-    const now = new Date();
-
-    for (let i = 0; i < maxCheck; i++) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      const key = this.formatIsoDate(d);
-      const log = this.getLog(category, key);
-
-      if (log[taskKey]) {
-        if (i < 7) weekCount++;
-        if (i < 30) monthCount++;
-        lifetimeCount++;
-      }
-    }
+    // Current user's own counts for this specific deed (independent of account creation date)
+    const myCounts = this.getUserDeedCounts(this.getAppState(), category, taskKey);
+    const weekCount = myCounts.week;
+    const monthCount = myCounts.month;
+    const lifetimeCount = myCounts.lifetime;
 
     // Determine community participant scores for this specific card
     const currentUid = this.getCurrentUser()?.id;
@@ -902,28 +957,42 @@ export class IbadatRepository {
     const otherMonthScores: number[] = [];
     const otherLifetimeScores: number[] = [];
 
-    this.communityUsers.forEach((u) => {
-      if (currentUid && u.uid === currentUid) return;
-      const counts = this.getUserDeedCounts(u.fullState, category, taskKey);
-      otherWeekScores.push(counts.week);
-      otherMonthScores.push(counts.month);
-      otherLifetimeScores.push(counts.lifetime);
-    });
+    if (this.communityUsers && this.communityUsers.length > 0) {
+      this.communityUsers.forEach((u) => {
+        if (currentUid && u.uid === currentUid) return;
+        const counts = this.getUserDeedCounts(u.fullState, category, taskKey);
+        otherWeekScores.push(counts.week);
+        otherMonthScores.push(counts.month);
+        otherLifetimeScores.push(counts.lifetime);
+      });
+    }
 
-    // Dense tied rank calculation:
-    // Identical scores get identical rank (e.g. all 7/7 users get #1)
-    // If two or three users share the same count of days, they share the exact same rank.
-    // The next score group gets the next rank (e.g., 1, 1, 1 -> 2, 2 -> 3).
-    const calcTiedRank = (myScore: number, otherScores: number[]): number => {
-      const all = [myScore, ...otherScores];
-      const uniqueDescending = Array.from(new Set(all)).sort((a, b) => b - a);
+    // Dense tied rank calculation matching user specification:
+    // - Highest performers with identical counts share the exact same rank (e.g. 7/7 users all get #1)
+    // - Down through ranks 1, 2, 3 multiple users can share the same rank (e.g. all with 6 get #2, all with 5 get #3)
+    // - After top 3, ranks continue sequentially (#4, #5, #6...)
+    // - If user has 0 (no amount performed), they get the lowest/last rank
+    const calcCardRank = (myScore: number, otherScores: number[]): number => {
+      const allScores = [myScore, ...otherScores];
+      // Unique scores sorted descending: e.g. [7, 6, 5, 0]
+      const uniqueDescending = Array.from(new Set(allScores)).sort((a, b) => b - a);
+
+      // If user has done 0 days (no amount)
+      if (myScore === 0) {
+        // Return the last rank (bottom position)
+        return Math.max(1, uniqueDescending.length);
+      }
+
       const idx = uniqueDescending.indexOf(myScore);
       return idx !== -1 ? idx + 1 : 1;
     };
 
-    const weekRank = calcTiedRank(weekCount, otherWeekScores);
-    const monthRank = calcTiedRank(monthCount, otherMonthScores);
-    const lifetimeRank = calcTiedRank(lifetimeCount, otherLifetimeScores);
+    const weekRank = calcCardRank(weekCount, otherWeekScores);
+    const monthRank = calcCardRank(monthCount, otherMonthScores);
+    const lifetimeRank = calcCardRank(lifetimeCount, otherLifetimeScores);
+
+    // Lifetime days strictly calculated from lifetimeStartDate to today
+    const totalLifetimeDays = this.getLifetimeDays();
 
     return {
       week: weekCount,
@@ -931,7 +1000,7 @@ export class IbadatRepository {
       lifetime: lifetimeCount,
       totalWeekDays: 7,
       totalMonthDays: 30,
-      totalLifetimeDays: totalDays,
+      totalLifetimeDays,
       weekRank,
       monthRank,
       lifetimeRank
@@ -1006,21 +1075,41 @@ export class IbadatRepository {
     let totalLifetime = 0;
     const todayIso = this.formatIsoDate(today);
 
-    allLoggedDates.forEach((dateStr) => {
-      if (dateStr <= todayIso) {
-        const logPoints = this.calculatePoints(dateStr);
-        const historyPoints = Number(state.pointsHistory?.[dateStr]) || 0;
-        totalLifetime += Math.max(logPoints, historyPoints);
+    // Normalize all dates to canonical YYYY-MM-DD to avoid double counting alternate formats
+    const normalizedDates = new Set<string>();
+    allLoggedDates.forEach((raw) => {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+        normalizedDates.add(raw);
+      } else {
+        try {
+          const d = new Date(raw);
+          if (!isNaN(d.getTime())) {
+            normalizedDates.add(this.formatIsoDate(d));
+          }
+        } catch {}
       }
     });
 
-    // Ensure account lifetime points stored on cloud stats are preserved
-    if (state.stats?.totalLifetimePoints && Number(state.stats.totalLifetimePoints) > totalLifetime) {
-      totalLifetime = Number(state.stats.totalLifetimePoints);
+    normalizedDates.forEach((dateStr) => {
+      if (dateStr <= todayIso) {
+        totalLifetime += this.calculatePoints(dateStr);
+      }
+    });
+
+    // Fallback only if there are absolutely no recorded dates yet (e.g. fresh load of cloud account)
+    if (totalLifetime === 0 && normalizedDates.size === 0) {
+      if (state.stats?.totalLifetimePoints && Number(state.stats.totalLifetimePoints) > 0) {
+        totalLifetime = Number(state.stats.totalLifetimePoints);
+      } else if (state.stats?.totalPoints && Number(state.stats.totalPoints) > 0) {
+        totalLifetime = Number(state.stats.totalPoints);
+      }
     }
-    if (state.stats?.totalPoints && Number(state.stats.totalPoints) > totalLifetime) {
-      totalLifetime = Number(state.stats.totalPoints);
-    }
+
+    // Keep state.stats synchronized with the live totalLifetime
+    if (!state.stats) state.stats = {};
+    state.stats.totalLifetimePoints = totalLifetime;
+    state.stats.totalPoints = totalLifetime;
+    this.saveAppState(state);
 
     return {
       todayPoints,
@@ -1038,45 +1127,48 @@ export class IbadatRepository {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayKey = this.formatIsoDate(yesterday);
+    const yesterdayAlt = yesterday.toDateString();
     const userYesterday = this.calculatePoints(yesterdayKey);
 
-    if (this.communityUsers && this.communityUsers.length > 0) {
-      const userList: Array<{ name: string; points: number }> = [];
-      const currentUid = this.getCurrentUser()?.id;
-      userList.push({
-        name: this.getUserName(),
-        points: userYesterday
-      });
+    const userList: Array<{ id: string; name: string; points: number }> = [];
+    const currentUid = this.getCurrentUser()?.id || 'me';
+    userList.push({
+      id: currentUid,
+      name: this.getUserName(),
+      points: userYesterday
+    });
 
+    if (this.communityUsers && this.communityUsers.length > 0) {
       this.communityUsers.forEach((u) => {
         if (currentUid && u.uid === currentUid) return;
-        const pts = Number(u.pointsHistory?.[yesterdayKey]) || 0;
-        if (pts > 0) {
-          userList.push({
-            name: u.name || 'ব্যবহারকারী',
-            points: pts
-          });
-        }
+        const pts = Number(u.pointsHistory?.[yesterdayKey])
+          || Number(u.pointsHistory?.[yesterdayAlt])
+          || Number(u.stats?.yesterdayPoints)
+          || 0;
+        userList.push({
+          id: u.uid,
+          name: u.name || 'ব্যবহারকারী',
+          points: pts
+        });
       });
-
-      userList.sort((a, b) => b.points - a.points);
-      if (userList.length > 0 && userList[0].points > 0) {
-        const topPts = userList[0].points;
-        const topUsers = userList.filter((u) => u.points === topPts);
-        return {
-          name: topUsers.map((u) => u.name).join(', '),
-          points: topPts
-        };
-      }
     }
 
-    if (userYesterday > 0) {
+    userList.sort((a, b) => b.points - a.points);
+    if (userList.length > 0) {
+      const topPts = userList[0].points;
+      const topUsers = userList.filter((u) => u.points === topPts);
       return {
-        name: this.getUserName(),
-        points: userYesterday
+        name: topUsers.map((u) => u.name).join(', '),
+        points: topPts,
+        users: topUsers.map((u) => ({ id: u.id, name: u.name, points: u.points }))
       };
     }
-    return null;
+
+    return {
+      name: this.getUserName(),
+      points: userYesterday,
+      users: [{ id: currentUid, name: this.getUserName(), points: userYesterday }]
+    };
   }
 
   getLeaderboard(metricType: string): LeaderboardUser[] {

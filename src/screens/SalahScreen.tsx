@@ -5,14 +5,13 @@ import {
   Bell,
   Sparkles,
   Sun,
-  Moon,
-  Trophy,
-  Crown
+  Moon
 } from 'lucide-react';
 import { IbadatRepository } from '../data/repository';
 import { AppStats, ChampionInfo, TaskStats, ReminderSetting } from '../types/ibadat';
 import { StatsGrid } from '../components/StatsGrid';
 import { TaskStatsRow } from '../components/TaskStatsRow';
+import { YesterdayChampionCard } from '../components/YesterdayChampionCard';
 
 interface SalahScreenProps {
   appStats: AppStats;
@@ -53,38 +52,12 @@ export const SalahScreen: React.FC<SalahScreenProps> = ({
 
   return (
     <div className="space-y-4 pb-20">
-      {/* Top Header Section with Yesterday's Champion in the top right */}
-      <div className="hidden">
-        <div>
-          <h2 className="text-xl font-bold text-gray-800">সালাত ও ইবাদত</h2>
-          <p className="text-xs text-gray-500">{bnDateStr}</p>
-        </div>
-
-        {yesterdayChampion && yesterdayChampion.points > 0 ? (
-          <div
-            id="yesterday-champion-box"
-            onClick={() => onOpenLeaderboard('yesterdayPoints', 'গতকালকের সেরা')}
-            className="flex flex-col items-end cursor-pointer transition transform hover:scale-105"
-          >
-            <div className="text-[10px] font-bold text-amber-600 mb-0.5 flex items-center">
-              <Trophy className="w-3 h-3 mr-1" /> গতকালের সেরা
-            </div>
-            <div className="flex items-center bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 shadow-xs">
-              <div className="mr-2 text-right">
-                <div id="champ-name" className="text-xs font-bold text-gray-800 leading-none max-w-[100px] truncate">
-                  {yesterdayChampion.name}
-                </div>
-                <div id="champ-points" className="text-[10px] font-semibold text-amber-700 leading-none mt-0.5">
-                  {yesterdayChampion.points} pts
-                </div>
-              </div>
-              <div className="w-6 h-6 bg-amber-100 rounded-full flex items-center justify-center">
-                <Crown className="w-3.5 h-3.5 text-amber-600 fill-amber-600" />
-              </div>
-            </div>
-          </div>
-        ) : null}
-      </div>
+      {/* Top Header Section with Yesterday's Champion right above Account Lifetime Points */}
+      <YesterdayChampionCard
+        champion={yesterdayChampion}
+        onClick={() => onOpenLeaderboard('yesterdayPoints', 'গতকালকের সেরা')}
+        bnDateStr={bnDateStr}
+      />
 
       {/* 7 Stats Grid */}
       <StatsGrid

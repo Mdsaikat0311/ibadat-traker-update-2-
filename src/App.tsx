@@ -34,7 +34,8 @@ import {
   fetchFirebaseChampion,
   fetchUserAccountLifetimePoints,
   fetchUserPointsHistory,
-  subscribeCommunityUsers
+  subscribeCommunityUsers,
+  fetchAllCommunityUsers
 } from './services/firebase';
 
 export const App: React.FC = () => {
@@ -87,6 +88,7 @@ export const App: React.FC = () => {
 
   // Live Firebase User Ranks cache
   const [userRanks, setUserRanks] = useState<Record<string, number>>({});
+  const [communityUpdateTick, setCommunityUpdateTick] = useState<number>(0);
 
   // Modals
   const [detailsModal, setDetailsModal] = useState<{ title: string; content: string } | null>(null);
@@ -132,6 +134,12 @@ export const App: React.FC = () => {
     repository.savePointsForDate(dateKey, points);
     const stats = repository.getAppStats(dateKey);
     setAppStats(stats);
+
+    // Keep yesterday champion updated in case yesterday's deeds changed
+    const champ = repository.getYesterdayChampion();
+    if (champ) {
+      setYesterdayChampion(champ);
+    }
 
     // Dynamic Nightly Notifications update
     NotificationService.scheduleDynamicNightlyNotifications();
@@ -210,7 +218,7 @@ export const App: React.FC = () => {
     // 1. Champion
     try {
       const champ = await fetchFirebaseChampion();
-      if (champ && champ.points > 0) {
+      if (champ) {
         setYesterdayChampion(champ);
       } else {
         setYesterdayChampion(repository.getYesterdayChampion());
@@ -283,12 +291,24 @@ export const App: React.FC = () => {
       }
     });
 
+    fetchAllCommunityUsers().then((users) => {
+      if (users && users.length > 0) {
+        repository.setCommunityUsers(users);
+        const champ = repository.getYesterdayChampion();
+        if (champ) {
+          setYesterdayChampion(champ);
+        }
+        setCommunityUpdateTick((prev) => prev + 1);
+      }
+    }).catch(() => {});
+
     const unsubscribeCommunity = subscribeCommunityUsers((users) => {
       repository.setCommunityUsers(users);
       const champ = repository.getYesterdayChampion();
       if (champ) {
         setYesterdayChampion(champ);
       }
+      setCommunityUpdateTick((prev) => prev + 1);
     });
 
     const unsubscribeInApp = NotificationService.addInAppListener((title, body) => {
@@ -393,9 +413,9 @@ export const App: React.FC = () => {
     saveToFirebaseCloud(currentViewingDate);
   };
 
-  const handleGetTaskStats = (category: string, taskKey: string): TaskStats => {
+  const handleGetTaskStats = useCallback((category: string, taskKey: string): TaskStats => {
     return repository.getTaskCompletionStats(category, taskKey);
-  };
+  }, [communityUpdateTick, currentViewingDate, lifetimeStartDate, salahLog, nawafilLog, dhikrLog, specialAmalLog, morningLog, nightlyLog, quranLog]);
 
   const handleSaveReminder = (key: string, name: string, start: string, count: number, interval: number) => {
     const setting = { key, name, start, count, interval };
@@ -490,6 +510,7 @@ export const App: React.FC = () => {
       return;
     }
     repository.setLifetimeStartDate(dateStr);
+    setLifetimeStartDate(dateStr);
     refreshAll();
     saveToFirebaseCloud();
     showAlert(`লাইফটাইম পয়েন্ট কাউন্ট শুরু ${dateStr} তারিখ থেকে সেট করা হয়েছে।`, true);

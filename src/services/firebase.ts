@@ -63,10 +63,29 @@ export function getPointsForPastDays(history: Record<string, number> | undefined
 }
 
 export function getTotalHistoryPoints(history: Record<string, number> | undefined): number {
-  if (!history) return 0;
+  if (!history || typeof history !== 'object') return 0;
+  const canonicalDateMap = new Map<string, number>();
+
+  Object.entries(history).forEach(([key, val]) => {
+    const num = parseInt(String(val), 10) || 0;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(key)) {
+      canonicalDateMap.set(key, num);
+    } else {
+      try {
+        const d = new Date(key);
+        if (!isNaN(d.getTime())) {
+          const iso = getDateKey(d);
+          if (!canonicalDateMap.has(iso)) {
+            canonicalDateMap.set(iso, num);
+          }
+        }
+      } catch {}
+    }
+  });
+
   let total = 0;
-  Object.values(history).forEach((p) => {
-    total += parseInt(String(p), 10) || 0;
+  canonicalDateMap.forEach((pts) => {
+    total += pts;
   });
   return total;
 }
@@ -228,8 +247,10 @@ export async function getTopUsersByMetric(
           }
         }
 
-        if (data.stats?.totalLifetimePoints && Number(data.stats.totalLifetimePoints) > lifetime) {
-          lifetime = Number(data.stats.totalLifetimePoints);
+        if (lifetime === 0 && data.stats?.totalLifetimePoints) {
+          lifetime = Number(data.stats.totalLifetimePoints) || 0;
+        } else if (lifetime === 0 && data.stats?.totalPoints) {
+          lifetime = Number(data.stats.totalPoints) || 0;
         }
 
         score = lifetime;
@@ -292,15 +313,16 @@ export async function fetchUserRank(statKey: string): Promise<number | null> {
 /**
  * Fetch yesterday champion from Firebase (includes all users tied for 1st place)
  */
-export async function fetchFirebaseChampion(): Promise<{ name: string; points: number } | null> {
+export async function fetchFirebaseChampion(): Promise<import('../types/ibadat').ChampionInfo | null> {
   try {
     const champions = await getTopUsersByMetric('yesterdayPoints', 0);
-    if (champions.length > 0 && champions[0].points > 0) {
+    if (champions.length > 0) {
       const topPoints = champions[0].points;
       const topUsers = champions.filter((u) => u.points === topPoints);
       return {
         name: topUsers.map((u) => u.name).join(', '),
-        points: topPoints
+        points: topPoints,
+        users: topUsers.map((u) => ({ id: u.id, name: u.name, points: u.points }))
       };
     }
     return null;
@@ -330,6 +352,13 @@ export async function syncStateToFirebase(
     updates[`users/${uid}/pointsHistory/${formattedDate}`] = points;
     updates[`users/${uid}/name`] = user.displayName || fullState.currentUser?.name || 'ব্যবহারকারী';
     updates[`users/${uid}/fullState`] = JSON.stringify(fullState);
+    if (fullState.salahLog) updates[`users/${uid}/salahLog`] = fullState.salahLog;
+    if (fullState.nawafilLog) updates[`users/${uid}/nawafilLog`] = fullState.nawafilLog;
+    if (fullState.dhikrLog) updates[`users/${uid}/dhikrLog`] = fullState.dhikrLog;
+    if (fullState.morningLog) updates[`users/${uid}/morningLog`] = fullState.morningLog;
+    if (fullState.nightlyLog) updates[`users/${uid}/nightlyLog`] = fullState.nightlyLog;
+    if (fullState.quranLog) updates[`users/${uid}/quranLog`] = fullState.quranLog;
+    if (fullState.specialAmalLog) updates[`users/${uid}/specialAmalLog`] = fullState.specialAmalLog;
     updates[`users/${uid}/stats`] = {
       ...stats,
       totalPoints: stats.totalLifetimePoints || stats.totalPoints || 0
@@ -492,7 +521,7 @@ export async function fetchAllCommunityUsers(): Promise<CommunityUserState[]> {
     snapshot.forEach((childSnap) => {
       const uid = childSnap.key || '';
       const data = childSnap.val() || {};
-      let fullState = null;
+      let fullState: any = null;
       if (data.fullState) {
         if (typeof data.fullState === 'string') {
           try {
@@ -502,6 +531,17 @@ export async function fetchAllCommunityUsers(): Promise<CommunityUserState[]> {
           fullState = data.fullState;
         }
       }
+      if (!fullState || typeof fullState !== 'object') {
+        fullState = {};
+      }
+      if (!fullState.salahLog && data.salahLog) fullState.salahLog = data.salahLog;
+      if (!fullState.nawafilLog && data.nawafilLog) fullState.nawafilLog = data.nawafilLog;
+      if (!fullState.dhikrLog && data.dhikrLog) fullState.dhikrLog = data.dhikrLog;
+      if (!fullState.morningLog && data.morningLog) fullState.morningLog = data.morningLog;
+      if (!fullState.nightlyLog && data.nightlyLog) fullState.nightlyLog = data.nightlyLog;
+      if (!fullState.quranLog && data.quranLog) fullState.quranLog = data.quranLog;
+      if (!fullState.specialAmalLog && data.specialAmalLog) fullState.specialAmalLog = data.specialAmalLog;
+
       userList.push({
         uid,
         name: data.name || 'ব্যবহারকারী',
@@ -538,23 +578,44 @@ export function subscribeCommunityUsers(
         // Cache the latest snapshot
         cachedUsersSnapshot = { timestamp: Date.now(), snapshot };
 
-        // Throttle updates to at most once per 2 seconds to avoid UI freeze during user actions
+        // Throttle updates to avoid unnecessary UI churn during rapid user actions
         if (throttleTimer) clearTimeout(throttleTimer);
         throttleTimer = setTimeout(() => {
           const userList: CommunityUserState[] = [];
           snapshot.forEach((childSnap) => {
             const uid = childSnap.key || '';
             const data = childSnap.val() || {};
+            let fullState: any = null;
+            if (data.fullState) {
+              if (typeof data.fullState === 'string') {
+                try {
+                  fullState = JSON.parse(data.fullState);
+                } catch {}
+              } else if (typeof data.fullState === 'object') {
+                fullState = data.fullState;
+              }
+            }
+            if (!fullState || typeof fullState !== 'object') {
+              fullState = {};
+            }
+            if (!fullState.salahLog && data.salahLog) fullState.salahLog = data.salahLog;
+            if (!fullState.nawafilLog && data.nawafilLog) fullState.nawafilLog = data.nawafilLog;
+            if (!fullState.dhikrLog && data.dhikrLog) fullState.dhikrLog = data.dhikrLog;
+            if (!fullState.morningLog && data.morningLog) fullState.morningLog = data.morningLog;
+            if (!fullState.nightlyLog && data.nightlyLog) fullState.nightlyLog = data.nightlyLog;
+            if (!fullState.quranLog && data.quranLog) fullState.quranLog = data.quranLog;
+            if (!fullState.specialAmalLog && data.specialAmalLog) fullState.specialAmalLog = data.specialAmalLog;
+
             userList.push({
               uid,
               name: data.name || 'ব্যবহারকারী',
-              fullState: null, // Omit heavy JSON.parse to keep UI at 60fps
+              fullState,
               pointsHistory: data.pointsHistory || {},
               stats: data.stats || {}
             });
           });
           callback(userList);
-        }, 800);
+        }, 500);
       },
       (error) => {
         console.warn("subscribeCommunityUsers error:", error);
