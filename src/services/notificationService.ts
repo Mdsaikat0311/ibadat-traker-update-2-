@@ -83,6 +83,64 @@ if (typeof document !== 'undefined') {
   }, false);
 }
 
+export interface FardSalahReminder {
+  id: number;
+  waqt: string;
+  hour: number;
+  minute: number;
+  timeFormatted: string;
+  title: string;
+  text: string;
+}
+
+export const FARD_SALAH_SCHEDULE: FardSalahReminder[] = [
+  {
+    id: 60001,
+    waqt: 'ফজর',
+    hour: 6,
+    minute: 0,
+    timeFormatted: 'সকাল ৬:০০ AM',
+    title: '🕌 ফজরের নামাজ আদায় করেছেন কি?',
+    text: 'আপনি কি ফজরের নামাজ আদায় করেছেন? যদি করে থাকেন তাহলে মাশাআল্লাহ, আলহামদুলিল্লাহ। আর যদি না করে থাকেন তাহলে অবশ্যই নামাজটি আদায় করে নিবেন। আর নামাজ মিস হয়ে গেলে অবশ্যই কাজা আদায় করে নিবেন। কারণ পাঁচ ওয়াক্ত সালাত আপনার উপর ফরজ। নামাজ পড়তেই হবে।'
+  },
+  {
+    id: 60002,
+    waqt: 'যোহর',
+    hour: 14,
+    minute: 0,
+    timeFormatted: 'দুপুর ২:০০ PM',
+    title: '🕌 যোহরের নামাজ আদায় করেছেন কি?',
+    text: 'আপনি কি যোহরের নামাজ আদায় করেছেন? যদি করে থাকেন তাহলে মাশাআল্লাহ, আলহামদুলিল্লাহ। আর যদি না করে থাকেন তাহলে অবশ্যই নামাজটি আদায় করে নিবেন। আর নামাজ মিস হয়ে গেলে অবশ্যই কাজা আদায় করে নিবেন। কারণ পাঁচ ওয়াক্ত সালাত আপনার উপর ফরজ। নামাজ পড়তেই হবে।'
+  },
+  {
+    id: 60003,
+    waqt: 'আসর',
+    hour: 17,
+    minute: 0,
+    timeFormatted: 'বিকেল ৫:০০ PM',
+    title: '🕌 আসরের নামাজ আদায় করেছেন কি?',
+    text: 'আপনি কি আসরের নামাজ আদায় করেছেন? যদি করে থাকেন তাহলে মাশাআল্লাহ, আলহামদুলিল্লাহ। আর যদি না করে থাকেন তাহলে অবশ্যই নামাজটি আদায় করে নিবেন। আর নামাজ মিস হয়ে গেলে অবশ্যই কাজা আদায় করে নিবেন। কারণ পাঁচ ওয়াক্ত সালাত আপনার উপর ফরজ। নামাজ পড়তেই হবে।'
+  },
+  {
+    id: 60004,
+    waqt: 'মাগরিব',
+    hour: 18,
+    minute: 30,
+    timeFormatted: 'সন্ধ্যা ৬:৩০ PM',
+    title: '🕌 মাগরিবের নামাজ আদায় করেছেন কি?',
+    text: 'আপনি কি মাগরিবের নামাজ আদায় করেছেন? যদি করে থাকেন তাহলে মাশাআল্লাহ, আলহামদুলিল্লাহ। আর যদি না করে থাকেন তাহলে অবশ্যই নামাজটি আদায় করে নিবেন। আর নামাজ মিস হয়ে গেলে অবশ্যই কাজা আদায় করে নিবেন। কারণ পাঁচ ওয়াক্ত সালাত আপনার উপর ফরজ। নামাজ পড়তেই হবে।'
+  },
+  {
+    id: 60005,
+    waqt: 'এশা',
+    hour: 21,
+    minute: 0,
+    timeFormatted: 'রাত ৯:০০ PM',
+    title: '🕌 এশার নামাজ আদায় করেছেন কি?',
+    text: 'আপনি কি এশার নামাজ আদায় করেছেন? যদি করে থাকেন তাহলে মাশাআল্লাহ, আলহামদুলিল্লাহ। আর যদি না করে থাকেন তাহলে অবশ্যই নামাজটি আদায় করে নিবেন। আর নামাজ মিস হয়ে গেলে অবশ্যই কাজা আদায় করে নিবেন। কারণ পাঁচ ওয়াক্ত সালাত আপনার উপর ফরজ। নামাজ পড়তেই হবে।'
+  }
+];
+
 export class NotificationService {
   /**
    * Register a listener for when Cordova deviceready fires
@@ -123,6 +181,76 @@ export class NotificationService {
   }
 
   /**
+   * Ensures all Android notification channels are created with custom sound 'reminder_sound2'
+   */
+  static ensureChannels(): void {
+    if (typeof window === 'undefined' || !window.cordova?.plugins?.notification?.local?.createChannel) return;
+    const local = window.cordova.plugins.notification.local;
+    if (!local || typeof local.createChannel !== 'function') return;
+    const soundUri = window.device?.platform === 'Android' ? 'res://raw/reminder_sound2' : undefined;
+    const createChan = local.createChannel.bind(local);
+
+    try {
+      // 1. Hadith channel with reminder_sound2
+      createChan({
+        id: 'hadith_channel_v5',
+        name: 'হাদিস রিমাইন্ডার',
+        description: 'প্রতি ১ ঘণ্টার নির্বাচিত হাদিস ও বাণী',
+        importance: 4,
+        visibility: 1,
+        vibration: true,
+        sound: soundUri
+      });
+
+      // 2. Instant notification channel with reminder_sound2
+      createChan({
+        id: 'ibadat_instant_channel_v3',
+        name: 'ইবাদত রিমাইন্ডার',
+        description: 'আমল ও ওয়াক্ত নোটিফিকেশন',
+        importance: 4,
+        visibility: 1,
+        vibration: true,
+        sound: soundUri
+      });
+
+      // 3. Reminders channel with reminder_sound2
+      createChan({
+        id: 'ibadat_reminders_channel_v3',
+        name: 'ইবাদত ওয়াক্ত রিমাইন্ডার',
+        description: 'ওয়াক্ত ও আমলের সময়সূচীর নোটিফিকেশন',
+        importance: 4,
+        visibility: 1,
+        vibration: true,
+        sound: soundUri
+      });
+
+      // 4. Nightly Leaderboard channel with reminder_sound2
+      createChan({
+        id: 'night_leaderboard_v2',
+        name: 'Nightly Leaderboard',
+        description: 'রাতের লিডারবোর্ড ও আমল রিমাইন্ডার',
+        importance: 4,
+        visibility: 1,
+        vibration: true,
+        sound: soundUri
+      });
+
+      // 5. Fard Salah channel with reminder_sound2
+      createChan({
+        id: 'fard_salah_channel_v1',
+        name: 'ফরজ সালাত রিমাইন্ডার',
+        description: 'পাঁচ ওয়াক্ত ফরজ সালাত আদায়ের নোটিফিকেশন',
+        importance: 4,
+        visibility: 1,
+        vibration: true,
+        sound: soundUri
+      });
+    } catch (e) {
+      console.warn('[Cordova] Error creating notification channels:', e);
+    }
+  }
+
+  /**
    * Initializes Cordova plugins (Background Mode, Channels, Permissions)
    */
   static initCordova(): void {
@@ -159,17 +287,11 @@ export class NotificationService {
           }
         });
 
-        // 3. Create 'night-leaderboard' channel for 6-stage nightly notifications
-        if (local.createChannel) {
-          local.createChannel({
-            id: 'night-leaderboard',
-            name: 'Nightly Leaderboard',
-            importance: 4,
-            visibility: 1,
-            vibration: true,
-            sound: window.device?.platform === 'Android' ? 'res://raw/reminder_sound3' : undefined
-          });
-        }
+        // 3. Register all notification channels with custom sound 'reminder_sound2'
+        this.ensureChannels();
+
+        // 4. Register the 5 daily Fard Salah notifications
+        this.scheduleFardSalahNotifications();
       }
 
       const permissions = window.cordova.plugins?.permissions;
@@ -314,6 +436,8 @@ export class NotificationService {
     // 3. Try Cordova Local Notification (shows on system tray / heads-up)
     if (this.isCordovaAvailable()) {
       try {
+        this.ensureChannels();
+        const soundUri = window.device?.platform === 'Android' ? 'res://raw/reminder_sound2' : true;
         window.cordova!.plugins!.notification!.local!.schedule({
           id: Math.floor(Math.random() * 800000) + 100000,
           title,
@@ -321,10 +445,10 @@ export class NotificationService {
           foreground: true,
           wakeup: true,
           vibrate: true,
-          sound: true,
+          sound: soundUri,
           priority: 2,
           importance: 4,
-          channel: 'ibadat_instant_channel',
+          channel: 'ibadat_instant_channel_v3',
           channelName: 'ইবাদত রিমাইন্ডার',
           channelDescription: 'আমল ও ওয়াক্ত নোটিফিকেশন',
           lockscreenVisibility: 1
@@ -379,6 +503,7 @@ export class NotificationService {
         }
 
         const notifId = hashKeyToNumber(setting.key, i);
+        const soundSetting = window.device?.platform === 'Android' ? 'res://raw/reminder_sound2' : true;
 
         notifications.push({
           id: notifId,
@@ -391,10 +516,10 @@ export class NotificationService {
           foreground: true,
           wakeup: true,
           vibrate: true,
-          sound: true,
+          sound: soundSetting,
           priority: 2, // High priority
           importance: 4, // Android 8+ IMPORTANCE_HIGH (pops up banner)
-          channel: 'ibadat_reminders_channel',
+          channel: 'ibadat_reminders_channel_v3',
           channelName: 'ইবাদত ওয়াক্ত রিমাইন্ডার',
           channelDescription: 'ওয়াক্ত ও আমলের সময়সূচীর নোটিফিকেশন',
           lockscreenVisibility: 1
@@ -419,6 +544,8 @@ export class NotificationService {
 
     if (this.isCordovaAvailable()) {
       try {
+        this.ensureChannels();
+        const soundSetting = window.device?.platform === 'Android' ? 'res://raw/reminder_sound2' : true;
         window.cordova!.plugins!.notification!.local!.schedule({
           id: 999991,
           title,
@@ -427,10 +554,10 @@ export class NotificationService {
           foreground: true,
           wakeup: true,
           vibrate: true,
-          sound: true,
+          sound: soundSetting,
           priority: 2,
           importance: 4,
-          channel: 'ibadat_test_channel',
+          channel: 'ibadat_instant_channel_v3',
           channelName: 'ইবাদত টেস্ট চ্যানেল',
           channelDescription: 'টেস্টিং নোটিফিকেশন',
           lockscreenVisibility: 1
@@ -499,8 +626,10 @@ export class NotificationService {
     this.cancelCordovaHadithReminders();
 
     try {
+      this.ensureChannels();
       const notifications: any[] = [];
       const now = Date.now();
+      const soundSetting = window.device?.platform === 'Android' ? 'res://raw/reminder_sound2' : true;
 
       for (let i = 1; i <= count; i++) {
         const triggerTime = new Date(now + i * intervalMinutes * 60 * 1000);
@@ -515,10 +644,10 @@ export class NotificationService {
           foreground: true,
           wakeup: true,
           vibrate: true,
-          sound: true,
+          sound: soundSetting,
           priority: 2,
           importance: 4,
-          channel: 'hadith_channel_v3',
+          channel: 'hadith_channel_v5',
           channelName: 'হাদিস রিমাইন্ডার',
           channelDescription: 'প্রতি ১ ঘণ্টার নির্বাচিত হাদিস ও বাণী',
           lockscreenVisibility: 1
@@ -526,7 +655,7 @@ export class NotificationService {
       }
 
       window.cordova!.plugins!.notification!.local!.schedule(notifications);
-      console.log(`[Cordova] Successfully scheduled ${notifications.length} hourly hadith notifications.`);
+      console.log(`[Cordova] Successfully scheduled ${notifications.length} hourly hadith notifications with reminder_sound2.`);
     } catch (e) {
       console.warn("Failed scheduling Cordova hadith notifications", e);
     }
@@ -547,6 +676,51 @@ export class NotificationService {
     } catch (e) {
       console.warn("Failed canceling Cordova hadith notifications", e);
     }
+  }
+
+  /**
+   * Schedule the 5 daily Fard Salah native Cordova local notifications
+   * Fajr (6:00 AM), Dhuhr (2:00 PM), Asr (5:00 PM), Maghrib (6:30 PM), Isha (9:00 PM)
+   * Triggers once daily at the exact minute with reminder_sound2.
+   */
+  static scheduleFardSalahNotifications(): void {
+    if (!this.isCordovaAvailable()) return;
+
+    try {
+      this.ensureChannels();
+      const local = window.cordova!.plugins!.notification!.local!;
+      const soundSetting = window.device?.platform === 'Android' ? 'res://raw/reminder_sound2' : true;
+
+      FARD_SALAH_SCHEDULE.forEach((item) => {
+        local.schedule({
+          id: item.id,
+          title: item.title,
+          text: item.text,
+          trigger: { every: { hour: item.hour, minute: item.minute } },
+          foreground: true,
+          wakeup: true,
+          vibrate: true,
+          sound: soundSetting,
+          priority: 2,
+          importance: 4,
+          channel: 'fard_salah_channel_v1',
+          channelName: 'ফরজ সালাত রিমাইন্ডার',
+          channelDescription: 'পাঁচ ওয়াক্ত ফরজ সালাত আদায়ের নোটিফিকেশন',
+          lockscreenVisibility: 1
+        });
+      });
+      console.log('[Cordova] Successfully scheduled all 5 daily Fard Salah reminders with reminder_sound2.');
+    } catch (e) {
+      console.warn('Failed scheduling Fard Salah notifications', e);
+    }
+  }
+
+  /**
+   * Test a specific Fard Salah notification immediately
+   */
+  static testFardSalahNotification(id: number): void {
+    const item = FARD_SALAH_SCHEDULE.find((x) => x.id === id) || FARD_SALAH_SCHEDULE[0];
+    this.sendNotification(item.title, item.text);
   }
 
   /**
@@ -623,13 +797,13 @@ export class NotificationService {
       }
     }
 
-    // 4. Check Dynamic Nightly Reminders (8:30 PM, 9:00 PM, 9:30 PM, 10:00 PM, 10:30 PM, 11:00 PM)
+    // 4. Check Dynamic Leaderboard Reminders (9:50 AM, 11:50 AM, 8:30 PM, 9:00 PM, 10:00 PM, 11:00 PM)
     const nightlySchedule = [
-      { hour: 20, minute: 30, index: 1 }, // 8:30 PM (১ম)
-      { hour: 21, minute: 0, index: 2 },  // 9:00 PM (২য়)
-      { hour: 21, minute: 30, index: 3 }, // 9:30 PM (৩য়)
-      { hour: 22, minute: 0, index: 4 },  // 10:00 PM (৪র্থ)
-      { hour: 22, minute: 30, index: 5 }, // 10:30 PM (৫ম)
+      { hour: 9, minute: 50, index: 1 },  // 9:50 AM (১ম)
+      { hour: 11, minute: 50, index: 2 }, // 11:50 AM (২য়)
+      { hour: 20, minute: 30, index: 3 }, // 8:30 PM (৩য়)
+      { hour: 21, minute: 0, index: 4 },  // 9:00 PM (৪র্থ)
+      { hour: 22, minute: 0, index: 5 },  // 10:00 PM (৫ম)
       { hour: 23, minute: 0, index: 6 }   // 11:00 PM (৬ষ্ঠ)
     ];
 
@@ -664,6 +838,18 @@ export class NotificationService {
         });
       }
     }
+
+    // 5. Check Fard Salah in-app reminder
+    FARD_SALAH_SCHEDULE.forEach((item) => {
+      if (currentHour === item.hour && currentMin === item.minute) {
+        const triggerKey = `${todayKey}_fard_salah_${item.id}`;
+        if (!triggeredKeysToday.has(triggerKey)) {
+          triggeredKeysToday.add(triggerKey);
+          this.sendNotification(item.title, item.text);
+          onInAppNotification(item.title, item.text);
+        }
+      }
+    });
   }
 
   /**
@@ -742,14 +928,15 @@ export class NotificationService {
 
       const pointsNeeded = Math.max(1, (topPoints - myPointsToday) + 1);
 
-      // ৪. ৬টি নোটিফিকেশনের সময় এবং ইনডেক্স (৮:৩০ PM, ৯:০০ PM, ৯:৩০ PM, ১০:০০ PM, ১০:৩০ PM, ১১:০০ PM)
+      // ৪. ৬টি নোটিফিকেশনের পরিবর্তিত সময় এবং ইনডেক্স
+      // ১ম: সকাল ৯:৫০ AM, ২য়: সকাল ১১:৫০ AM, ৩য়: রাত ৮:৩০ PM, ৪র্থ: রাত ৯:০০ PM, ৫ম: রাত ১০:০০ PM, ৬ষ্ঠ: রাত ১১:০০ PM
       const reminders = [
-        { id: 70001, hour: 20, minute: 30, index: 1 }, // ১ম নোটিফিকেশন (8:30 PM)
-        { id: 70002, hour: 21, minute: 0, index: 2 },  // ২য় নোটিফিকেশন (9:00 PM)
-        { id: 70003, hour: 21, minute: 30, index: 3 }, // ৩য় নোটিফিকেশন (9:30 PM)
-        { id: 70004, hour: 22, minute: 0, index: 4 },  // ৪র্থ নোটিফিকেশন (10:00 PM)
-        { id: 70005, hour: 22, minute: 30, index: 5 }, // ৫ম নোটিফিকেশন (10:30 PM)
-        { id: 70006, hour: 23, minute: 0, index: 6 }   // ৬ষ্ঠ নোটিফিকেশন (11:00 PM)
+        { id: 70001, hour: 9, minute: 50, index: 1 },  // ১ম নোটিফিকেশন (সকাল ৯:৫০ AM)
+        { id: 70002, hour: 11, minute: 50, index: 2 }, // ২য় নোটিফিকেশন (সকাল ১১:৫০ AM)
+        { id: 70003, hour: 20, minute: 30, index: 3 }, // ৩য় নোটিফিকেশন (রাত ৮:৩০ PM)
+        { id: 70004, hour: 21, minute: 0, index: 4 },  // ৪র্থ নোটিফিকেশন (রাত ৯:০০ PM)
+        { id: 70005, hour: 22, minute: 0, index: 5 },  // ৫ম নোটিফিকেশন (রাত ১০:০০ PM)
+        { id: 70006, hour: 23, minute: 0, index: 6 }   // ৬ষ্ঠ নোটিফিকেশন (রাত ১১:০০ PM)
       ];
 
       // ৫. লুপ চালিয়ে প্রতিটি নোটিফিকেশনের জন্য আলাদা মেসেজ সেট করা
@@ -826,31 +1013,19 @@ export class NotificationService {
         // ৬. শিডিউল বা আপডেট লজিক
         if (typeof window !== 'undefined' && window.cordova?.plugins?.notification?.local) {
           const local = window.cordova.plugins.notification.local;
-          local.isPresent(r.id, (present: boolean) => {
-            if (present) {
-              // আপডেট (সাইলেন্ট)
-              local.update({
-                id: r.id,
-                title: title,
-                text: body
-              });
-              console.log(`Updated notification ${r.id} with points: ${myRealTimePoints}`);
-            } else {
-              // নতুন শিডিউল
-              local.schedule({
-                id: r.id,
-                title: title,
-                text: body,
-                trigger: { every: { hour: r.hour, minute: r.minute } },
-                foreground: true,
-                priority: 2,
-                wakeup: true,
-                channel: 'night-leaderboard',
-                sound: window.device?.platform === 'Android' ? 'res://raw/reminder_sound3' : undefined
-              });
-              console.log(`Scheduled notification ${r.id}`);
-            }
+          
+          local.schedule({
+            id: r.id,
+            title: title,
+            text: body,
+            trigger: { every: { hour: r.hour, minute: r.minute } },
+            foreground: true,
+            priority: 2,
+            wakeup: true,
+            channel: 'night_leaderboard_v2',
+            sound: window.device?.platform === 'Android' ? 'res://raw/reminder_sound2' : undefined
           });
+          console.log(`Scheduled notification ${r.id} at ${r.hour}:${r.minute}`);
 
           // যদি ওই দিনে ব্যবহারকারীর পয়েন্ট ০ থাকে, তবে সবগুলো নোটিফিকেশনের (১-৬) ঠিক পরপরই (৬ সেকেন্ড পর) ২য় নোটিফিকেশন হিসেবে শূন্য পয়েন্ট সতর্কতা আসবে
           const zeroFollowUpId = r.id + 100; // 70101, 70102, 70103, 70104, 70105, 70106
@@ -864,31 +1039,21 @@ export class NotificationService {
               zeroTriggerDate.setDate(zeroTriggerDate.getDate() + 1);
             }
 
-            local.isPresent(zeroFollowUpId, (present: boolean) => {
-              if (present) {
-                local.update({
-                  id: zeroFollowUpId,
-                  title: zeroPointTitle,
-                  text: zeroPointBody
-                });
-              } else {
-                local.schedule({
-                  id: zeroFollowUpId,
-                  title: zeroPointTitle,
-                  text: zeroPointBody,
-                  trigger: {
-                    at: zeroTriggerDate,
-                    every: 'day'
-                  },
-                  foreground: true,
-                  priority: 2,
-                  wakeup: true,
-                  channel: 'night-leaderboard',
-                  sound: window.device?.platform === 'Android' ? 'res://raw/reminder_sound3' : undefined
-                });
-                console.log(`Scheduled zero-point follow-up notification ${zeroFollowUpId} after notification ${r.index}`);
-              }
+            local.schedule({
+              id: zeroFollowUpId,
+              title: zeroPointTitle,
+              text: zeroPointBody,
+              trigger: {
+                at: zeroTriggerDate,
+                every: 'day'
+              },
+              foreground: true,
+              priority: 2,
+              wakeup: true,
+              channel: 'night_leaderboard_v2',
+              sound: window.device?.platform === 'Android' ? 'res://raw/reminder_sound2' : undefined
             });
+            console.log(`Scheduled zero-point follow-up notification ${zeroFollowUpId} after notification ${r.index}`);
           } else {
             // ইউজারের পয়েন্ট থাকলে শূন্য পয়েন্টের অ্যালার্ম বাতিল করা হবে
             local.cancel(zeroFollowUpId);

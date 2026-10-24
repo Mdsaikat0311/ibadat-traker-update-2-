@@ -211,7 +211,7 @@ export const TajweedSettingModal: React.FC<TajweedSettingModalProps> = ({
                   className={`w-11 h-6 rounded-full transition-colors relative p-0.5 ${
                     !config.enabled
                       ? 'bg-black/30 opacity-50 cursor-not-allowed'
-                      : config[rule.id]
+                      : isRuleActive
                       ? 'bg-white'
                       : 'bg-black/40'
                   }`}
@@ -219,19 +219,19 @@ export const TajweedSettingModal: React.FC<TajweedSettingModalProps> = ({
                 >
                   <div
                     className={`w-5 h-5 rounded-full shadow-sm transition-transform ${
-                      config[rule.id] && config.enabled
+                      isRuleActive
                         ? 'translate-x-5 bg-teal-700'
                         : 'translate-x-0 bg-white'
                     }`}
                   />
                   <span
                     className={`absolute inset-y-0 text-[9px] font-bold flex items-center ${
-                      config[rule.id] && config.enabled
+                      isRuleActive
                         ? 'left-1.5 text-teal-800'
                         : 'right-1.5 text-white/80'
                     }`}
                   >
-                    {config[rule.id] && config.enabled ? 'ON' : 'OFF'}
+                    {isRuleActive ? 'ON' : 'OFF'}
                   </span>
                 </button>
               </div>

@@ -16,7 +16,7 @@ import {
 import { AppStats, GeneralReminderSetting } from '../types/ibadat';
 import { StatsGrid } from '../components/StatsGrid';
 import { User } from '../services/firebase';
-import { NotificationService } from '../services/notificationService';
+import { NotificationService, FARD_SALAH_SCHEDULE } from '../services/notificationService';
 
 interface SettingsScreenProps {
   currentUser: User | null;
@@ -75,6 +75,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [dateInput, setDateInput] = useState(lifetimeStartDate);
   const [nameInput, setNameInput] = useState(userName);
   const [testingIndex, setTestingIndex] = useState<number | null>(null);
+  const [testingFardId, setTestingFardId] = useState<number | null>(null);
+
+  const handleTestFardSalah = (id: number) => {
+    setTestingFardId(id);
+    NotificationService.testFardSalahNotification(id);
+    onShowAlert("ফরজ সালাত রিমাইন্ডার টেস্ট নোটিফিকেশন পাঠানো হয়েছে", true);
+    setTimeout(() => setTestingFardId(null), 1000);
+  };
 
   const handleTestNightly = async (index: number, forceSimulateZero: boolean = false) => {
     setTestingIndex(index);
@@ -452,6 +460,53 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </div>
         </div>
 
+        {/* পাঁচ ওয়াক্ত ফরজ সালাত নোটিফিকেশন */}
+        <div className="bg-white p-5 rounded-2xl shadow-xs border border-emerald-100">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-base font-bold text-gray-800 flex items-center">
+              <span className="text-lg mr-2">🕌</span>
+              <span>পাঁচ ওয়াক্ত ফরজ সালাত রিমাইন্ডার</span>
+            </h3>
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+              দৈনিক ১ বার
+            </span>
+          </div>
+
+          <p className="text-xs text-gray-600 mb-3 leading-relaxed">
+            প্রতিদিন নির্ধারিত সময়ে কর্ডোভা অ্যালার্মের মাধ্যমে ব্যাকগ্রাউন্ডে স্বয়ংক্রিয়ভাবে পাঁচ ওয়াক্ত ফরজ সালাতের রিমাইন্ডার ও কাজা আদায়ের তাগিদ পাঠানো হয়।
+          </p>
+
+          <div className="space-y-2">
+            {FARD_SALAH_SCHEDULE.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-center justify-between p-2.5 rounded-lg border border-emerald-100 bg-emerald-50/40 text-xs"
+              >
+                <div className="flex-1 mr-2">
+                  <div className="flex items-center gap-1.5 font-bold text-gray-800">
+                    <Clock3 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>{item.waqt} সালাত ({item.timeFormatted})</span>
+                  </div>
+                  <div className="text-[11px] text-gray-500 mt-0.5 line-clamp-1">
+                    {item.title}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={testingFardId === item.id}
+                  onClick={() => handleTestFardSalah(item.id)}
+                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[11px] font-bold transition cursor-pointer shrink-0 flex items-center gap-1 shadow-2xs disabled:opacity-50"
+                  title={`${item.waqt} সালাত নোটিফিকেশন টেস্ট পাঠান`}
+                >
+                  <Play className="w-3 h-3 fill-current" />
+                  <span>{testingFardId === item.id ? '...' : 'টেস্ট'}</span>
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Alarm Issue / Exact Alarm Permission Prompt */}
         <div className="p-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 rounded-r-xl">
           <p className="text-sm font-bold">অ্যালার্ম সমস্যা হচ্ছে?</p>
@@ -480,7 +535,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </div>
 
           <p className="text-xs text-gray-600 mb-3 leading-relaxed">
-            প্রতিদিন রাত ৮:৩০ থেকে ১১:০০ এর মধ্যে আপনার পয়েন্ট ও লিডারবোর্ডের র্যাঙ্ক অনুযায়ী স্বয়ংক্রিয়ভাবে নোটিফিকেশন পাঠানো হয়। এবং ওই দিনে কোনো ইবাদত পয়েন্ট না থাকলে (০ পয়েন্ট হলে) সবগুলো নোটিফিকেশনের ঠিক পরপরই দ্বিতীয় নোটিফিকেশন হিসেবে বিশেষ সতর্কবার্তা ও হেদায়েতের দু'আ পাঠানো হয়।
+            প্রতিদিন নির্ধারিত সময়ে (সকাল ৯:৫০, সকাল ১১:৫০, রাত ৮:৩০, রাত ৯:০০, রাত ১০:০০ ও রাত ১১:০০) আপনার পয়েন্ট ও লিডারবোর্ডের র্যাঙ্ক অনুযায়ী স্বয়ংক্রিয়ভাবে নোটিফিকেশন পাঠানো হয়। এবং ওই দিনে কোনো ইবাদত পয়েন্ট না থাকলে (০ পয়েন্ট হলে) সবগুলো নোটিফিকেশনের ঠিক পরপরই দ্বিতীয় নোটিফিকেশন হিসেবে বিশেষ সতর্কবার্তা ও হেদায়েতের দু'আ পাঠানো হয়।
           </p>
 
           {/* Today's Points & Zero Warning Status Banner */}
@@ -504,13 +559,13 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
           <div className="space-y-2 mb-3">
             {[
-              { id: 70001, hour: 20, min: 30, index: 1, name: "১ম নোটিফিকেশন (৮:৩০ PM)", desc: "গতকালকের সেরা / গতকালের অবস্থান ও ৭/৩০ দিনের স্কোর" },
-              { id: 70002, hour: 21, min: 0, index: 2, name: "২য় নোটিফিকেশন (৯:০০ PM)", desc: "গতকালকের সেরা / গতকালের অবস্থান ও আখিরাতের উন্নতি" },
-              { id: 70003, hour: 21, min: 30, index: 3, name: "৩য় নোটিফিকেশন (৯:৩০ PM)", desc: "আজকের সেরা / ১ম স্থানে যাওয়ার প্রয়োজনীয় পয়েন্ট" },
-              { id: 70004, hour: 22, min: 0, index: 4, name: "৪র্থ নোটিফিকেশন (১০:০০ PM)", desc: "আজকের পয়েন্ট ও গতকালকের তুলনায় অগ্রগতি" },
-              { id: 70005, hour: 22, min: 30, index: 5, name: "৫ম নোটিফিকেশন (১০:৩০ PM)", desc: "আজকের সেরা / ১ম নম্বরে উঠে আসার অনুপ্রেরণা" },
-              { id: 70006, hour: 23, min: 0, index: 6, name: "৬ষ্ঠ নোটিফিকেশন (১১:০০ PM)", desc: "আজকের অর্জন, ওযু করে তাহাজ্জুদের নিয়ত ও শুভ রাত্রি" },
-              { id: 70007, hour: 23, min: 0, index: 7, name: "শূন্য (০) পয়েন্ট সতর্কতা (সবগুলোর পরপরই)", desc: "পয়েন্ট ০ থাকলে ১ থেকে ৬ সবগুলো নোটিফিকেশনের ঠিক পরপরই ২য় নোটিফিকেশন হিসেবে এই সতর্কবার্তা আসে", isAlert: true }
+              { id: 70001, hour: 9, min: 50, index: 1, name: "১ম নোটিফিকেশন (সকাল ৯:৫০ AM)", desc: "গতকালকের সেরা / গতকালের অবস্থান ও ৭/৩০ দিনের স্কোর" },
+              { id: 70002, hour: 11, min: 50, index: 2, name: "২য় নোটিফিকেশন (সকাল ১১:৫০ AM)", desc: "গতকালকের সেরা / গতকালের অবস্থান ও আখিরাতের উন্নতি" },
+              { id: 70003, hour: 20, min: 30, index: 3, name: "৩য় নোটিফিকেশন (রাত ৮:৩০ PM)", desc: "আজকের সেরা / ১ম স্থানে যাওয়ার প্রয়োজনীয় পয়েন্ট" },
+              { id: 70004, hour: 21, min: 0, index: 4, name: "৪র্থ নোটিফিকেশন (রাত ৯:০০ PM)", desc: "আজকের পয়েন্ট ও গতকালকের তুলনায় অগ্রগতি" },
+              { id: 70005, hour: 22, min: 0, index: 5, name: "৫ম নোটিফিকেশন (রাত ১০:০০ PM)", desc: "আজকের সেরা / ১ম নম্বরে উঠে আসার অনুপ্রেরণা" },
+              { id: 70006, hour: 23, min: 0, index: 6, name: "৬ষ্ঠ নোটিফিকেশন (রাত ১১:০০ PM)", desc: "আজকের অর্জন, ওযু করে তাহাজ্জুদের নিয়ত ও শুভ রাত্রি" },
+              { id: 70007, hour: 23, min: 0, index: 7, name: "শূন্য (০) পয়েন্ট সতর্কতা (সবগুলোর পরপরই)", desc: "পয়েন্ট ০ থাকলে ১ থেকে ৬ সবগুলো নোটিফিকেশনের ঠিক পরপরই (৬ সেকেন্ড পর) ২য় নোটিফিকেশন হিসেবে এই সতর্কবার্তা আসে", isAlert: true }
             ].map((slot) => (
               <div
                 key={slot.id}

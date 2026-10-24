@@ -334,7 +334,16 @@ export const renderTajweedAyah = (
         // Idghaam Ghunna prefix
         if (config.idghaamGhunna && part.startsWith('ٱلنَّ')) {
           return (
-            <span key={index} style={{ color: ghunnaColor }}>
+            <span key={index} style={{ color: idghaamGhunnaColor }}>
+              {part}
+            </span>
+          );
+        }
+
+        // Idghaam Without Ghunna
+        if (config.idghaamNoGhunna && /[\u0646\u064B\u064C\u064D]\s*[لر]/.test(part)) {
+          return (
+            <span key={index} style={{ color: idghaamNoGhunnaColor }}>
               {part}
             </span>
           );

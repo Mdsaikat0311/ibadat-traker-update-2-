@@ -7,6 +7,9 @@ import {
   Pause,
   Bookmark,
   BookmarkCheck,
+  BookmarkPlus,
+  Paperclip,
+  Share2,
   ChevronLeft,
   ChevronRight,
   Copy,
@@ -67,7 +70,21 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
   // Bookmarks & Ayah Interactions
   const [bookmarks, setBookmarks] = useState<QuranBookmark[]>(getBookmarks());
   const [copiedAyahNumber, setCopiedAyahNumber] = useState<number | null>(null);
-  const [activeAyahAction, setActiveAyahAction] = useState<number | null>(null);
+  const [selectedAyahForSheet, setSelectedAyahForSheet] = useState<Ayah | null>(null);
+  const [lastRead, setLastRead] = useState<{
+    surahNumber: number;
+    surahName: string;
+    surahEnglishName: string;
+    ayahNumber: number;
+    timestamp: number;
+  } | null>(() => {
+    try {
+      const saved = localStorage.getItem('ibadat_quran_last_read');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
 
   // Reading Settings
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
@@ -172,8 +189,11 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
     setCurrentPlayingAyah(null);
   };
 
-  const playAyahAudio = (ayah: Ayah) => {
-    if (!ayah.audioUrl) return;
+  const playAyahAudio = (ayah: Ayah, singleOnly: boolean = false) => {
+    if (!ayah.audioUrl) {
+      onShowAlert?.('এই আয়াতের অডিও পাওয়া যায়নি।', false);
+      return;
+    }
 
     if (currentPlayingAyah === ayah.numberInSurah && isPlayingAudio) {
       stopAudio();
@@ -185,23 +205,33 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
     }
 
     audioRef.current.src = ayah.audioUrl;
-    audioRef.current.play().then(() => {
-      setIsPlayingAudio(true);
-      setCurrentPlayingAyah(ayah.numberInSurah);
-    }).catch((e) => {
-      console.warn("Audio playback error:", e);
-      setIsPlayingAudio(false);
-    });
+    audioRef.current
+      .play()
+      .then(() => {
+        setIsPlayingAudio(true);
+        setCurrentPlayingAyah(ayah.numberInSurah);
+      })
+      .catch((e) => {
+        console.warn("Audio playback error:", e);
+        setIsPlayingAudio(false);
+        onShowAlert?.('অডিও প্লে করতে সমস্যা হয়েছে। ইন্টারনেট সংযোগ চেক করুন।', false);
+      });
 
     audioRef.current.onended = () => {
-      // Auto play next ayah in surah if available
-      const nextIndex = ayah.numberInSurah;
-      if (nextIndex < ayahs.length) {
-        const nextAyah = ayahs[nextIndex];
-        playAyahAudio(nextAyah);
-      } else {
+      if (singleOnly) {
+        // Stop playback after this single ayah (exact user request)
         setIsPlayingAudio(false);
         setCurrentPlayingAyah(null);
+      } else {
+        // Auto play next ayah in surah if available
+        const nextIndex = ayah.numberInSurah;
+        if (nextIndex < ayahs.length) {
+          const nextAyah = ayahs[nextIndex];
+          playAyahAudio(nextAyah, false);
+        } else {
+          setIsPlayingAudio(false);
+          setCurrentPlayingAyah(null);
+        }
       }
     };
   };
@@ -275,60 +305,41 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
     return renderTajweedAyah(text, tajweedConfig, surahNum, ayahNum);
   };
 
-  // Surah Switcher List: ordered to match screenshot
-  const surahSwitcherList = useMemo(() => {
-    if (!selectedSurah) return [];
-    if (selectedSurah.number >= 111) {
-      return [114, 113, 112, 111, 110]
-        .map((num) => ALL_SURAHS.find((s) => s.number === num)!)
-        .filter(Boolean);
-    }
-    const start = Math.max(1, selectedSurah.number - 1);
-    const end = Math.min(114, selectedSurah.number + 3);
-    const list: SurahMeta[] = [];
-    for (let i = start; i <= end; i++) {
-      const found = ALL_SURAHS.find((s) => s.number === i);
-      if (found) list.push(found);
-    }
-    return list;
-  }, [selectedSurah]);
-
   // ----------------------------------------------------
   // VIEW: SURAH READER (Screen 2)
   // ----------------------------------------------------
   if (selectedSurah) {
     const isFirstSurah = selectedSurah.number === 1;
     const isTawbah = selectedSurah.number === 9;
-    const currentJuz = ayahs[0]?.juz || selectedSurah.startJuz;
-    const currentPage = ayahs[0]?.page || selectedSurah.startPage;
 
     return (
       <div className="min-h-screen bg-[#070b09] text-slate-100 flex flex-col font-sans -m-4">
-        {/* Top Header Bar (100% matches Screenshot) */}
-        <header className="sticky top-0 z-30 bg-[#070b09]/95 backdrop-blur-md border-b border-[#15201a] px-3 py-2 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
+        {/* Top Header Bar */}
+        <header className="sticky top-0 z-30 bg-[#070b09]/95 backdrop-blur-md border-b border-[#15201a] px-3.5 py-2.5 flex items-center justify-between">
+          <div className="flex items-center space-x-2.5 min-w-0">
             <button
               onClick={() => {
                 stopAudio();
                 setSelectedSurah(null);
               }}
-              className="p-1 -ml-1 text-slate-300 hover:text-white rounded-lg active:bg-slate-800 transition"
+              className="p-1.5 -ml-1 text-slate-300 hover:text-white rounded-lg active:bg-slate-800 transition cursor-pointer shrink-0"
               aria-label="Back to Surah List"
             >
               <ChevronLeft className="w-6 h-6 stroke-[2]" />
             </button>
 
             {/* Circular Green Quran Emblem */}
-            <div className="w-8 h-8 rounded-full bg-[#1b5e43] border border-[#2e7d58] flex items-center justify-center text-emerald-100 shadow-xs shrink-0">
+            <div className="w-9 h-9 rounded-full bg-[#1b5e43] border border-[#2e7d58] flex items-center justify-center text-emerald-100 shadow-xs shrink-0">
               <BookOpen className="w-4 h-4 stroke-[2]" />
             </div>
 
-            <div className="leading-tight">
-              <div className="text-[13px] font-bold text-white tracking-wide">
-                Page {currentPage}
-              </div>
-              <div className="text-[11px] text-slate-400 font-medium">
-                Juz {currentJuz}
+            {/* Prominent Surah Name */}
+            <div className="flex flex-col justify-center min-w-0">
+              <h1 className="text-base sm:text-lg font-bold text-white tracking-wide leading-tight truncate">
+                {selectedSurah.number}. {selectedSurah.banglaName}
+              </h1>
+              <div className="text-[11px] text-[#2dd4bf] font-medium leading-none mt-0.5 truncate">
+                {selectedSurah.englishName} ({selectedSurah.revelationTypeBn} • {selectedSurah.numberOfAyahs} আয়াত)
               </div>
             </div>
           </div>
@@ -400,31 +411,6 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
             </button>
           </div>
         </header>
-
-        {/* Horizontal Surah Switcher Bar (Ordered nearby Surahs) */}
-        <div className="bg-[#070b09] border-b border-[#141e18] overflow-x-auto no-scrollbar py-2 px-3 flex space-x-4 items-center">
-          {surahSwitcherList.map((s) => {
-            const isCurrent = s.number === selectedSurah.number;
-            return (
-              <button
-                key={s.number}
-                onClick={() => {
-                  if (s.number !== selectedSurah.number) {
-                    stopAudio();
-                    setSelectedSurah(s);
-                  }
-                }}
-                className={`text-xs whitespace-nowrap pb-1 transition-all select-none ${
-                  isCurrent
-                    ? 'text-slate-100 font-semibold border-b-2 border-[#b58e57]'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                {s.number}. {s.englishName}
-              </button>
-            );
-          })}
-        </div>
 
         {/* Reader Body Content */}
         <div className="flex-1 px-3 py-3 max-w-xl mx-auto w-full space-y-3 pb-24">
@@ -508,28 +494,44 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
           {!loadingAyahs &&
             ayahs.map((ayah) => {
               const isPlayingThisAyah = currentPlayingAyah === ayah.numberInSurah;
-              const isBookmarked = isAyahBookmarked(selectedSurah.number, ayah.numberInSurah);
-              const isCopied = copiedAyahNumber === ayah.numberInSurah;
-              const isActionActive = activeAyahAction === ayah.numberInSurah;
+              const isLastReadAyah =
+                lastRead &&
+                lastRead.surahNumber === selectedSurah.number &&
+                lastRead.ayahNumber === ayah.numberInSurah;
 
               return (
                 <div
                   key={ayah.numberInSurah}
                   id={`ayah-${ayah.numberInSurah}`}
-                  className="py-3.5 border-b border-[#141e17]/50 space-y-2 transition-colors"
+                  onClick={() => setSelectedAyahForSheet(ayah)}
+                  className={`py-3.5 px-2.5 -mx-1 rounded-2xl border-b border-[#141e17]/50 space-y-2 transition-all cursor-pointer group ${
+                    isPlayingThisAyah
+                      ? 'bg-[#15271e] ring-1 ring-teal-500/50 shadow-md'
+                      : isLastReadAyah
+                      ? 'bg-[#121c17] border-l-2 border-l-teal-500/80 hover:bg-[#16231c]'
+                      : 'hover:bg-[#131d17]/80 active:bg-[#17251d]'
+                  }`}
+                  title="আয়াত অপশন ও তিলাওয়াত মেনু খুলতে ক্লিক করুন"
                 >
                   {/* Top Row: Left 8-lobed Scalloped Rosette + Right Arabic Ayah Text */}
                   <div className="flex items-start justify-between gap-3">
                     {/* Left: 8-lobed Islamic Rosette with Ayah Number */}
                     <div
-                      onClick={() => setActiveAyahAction(isActionActive ? null : ayah.numberInSurah)}
-                      className="cursor-pointer active:scale-95 transition"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedAyahForSheet(ayah);
+                      }}
+                      className="cursor-pointer active:scale-95 transition shrink-0 pt-0.5"
                       title="অপশন ও মেন্যু"
                     >
                       <IslamicStar
                         number={ayah.numberInSurah}
                         size={34}
-                        numberClassName="text-[#2dd4bf] text-[11px] font-semibold"
+                        numberClassName={
+                          isPlayingThisAyah
+                            ? 'text-[#4ade80] text-[11px] font-bold'
+                            : 'text-[#2dd4bf] text-[11px] font-semibold'
+                        }
                       />
                     </div>
 
@@ -544,7 +546,13 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
                       className="text-right text-white font-normal tracking-wide px-1 select-text flex-1"
                     >
                       {renderAyahArabic(ayah.textArabic, selectedSurah.number, ayah.numberInSurah)}
-                      <span className="inline-flex items-center justify-center w-[22px] h-[22px] rounded-full border border-white/80 text-white text-[11px] font-sans mr-2 align-middle select-none shrink-0">
+                      <span
+                        className={`inline-flex items-center justify-center w-[22px] h-[22px] rounded-full border text-[11px] font-sans mr-2 align-middle select-none shrink-0 ${
+                          isPlayingThisAyah
+                            ? 'border-teal-400 text-teal-300 font-bold'
+                            : 'border-white/80 text-white'
+                        }`}
+                      >
                         {toArabicNumber(ayah.numberInSurah)}
                       </span>
                     </div>
@@ -561,66 +569,6 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
                   {showTranslation && ayah.translationBn && (
                     <div className="text-[#cbd5e1] text-[13px] leading-relaxed font-normal pt-0.5 pl-1">
                       {ayah.translationBn}
-                    </div>
-                  )}
-
-                  {/* Quick Context Action Bar on Rosette click */}
-                  {isActionActive && (
-                    <div className="flex items-center justify-end space-x-2 pt-2 mt-1 border-t border-[#1a2720]/80">
-                      <button
-                        onClick={() => playAyahAudio(ayah)}
-                        className="px-2.5 py-1 text-xs text-[#2dd4bf] bg-teal-950/70 border border-teal-800/50 rounded-lg flex items-center space-x-1"
-                      >
-                        {isPlayingAudio && isPlayingThisAyah ? (
-                          <>
-                            <Pause className="w-3.5 h-3.5 fill-current" />
-                            <span>থামান</span>
-                          </>
-                        ) : (
-                          <>
-                            <Play className="w-3.5 h-3.5" />
-                            <span>তিলাওয়াত</span>
-                          </>
-                        )}
-                      </button>
-                      <button
-                        onClick={() => handleCopyAyah(ayah)}
-                        className="px-2.5 py-1 text-xs text-slate-300 bg-[#16231d] border border-slate-700/50 rounded-lg flex items-center space-x-1"
-                      >
-                        {isCopied ? (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-emerald-400" />
-                            <span className="text-emerald-400">কপি হয়েছে</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3.5 h-3.5" />
-                            <span>কপি</span>
-                          </>
-                        )}
-                      </button>
-                      <button
-                        onClick={() =>
-                          handleToggleBookmark(
-                            selectedSurah.number,
-                            selectedSurah.banglaName,
-                            ayah.numberInSurah
-                          )
-                        }
-                        className="px-2.5 py-1 text-xs text-slate-300 bg-[#16231d] border border-slate-700/50 rounded-lg flex items-center space-x-1"
-                      >
-                        {isBookmarked ? (
-                          <>
-                            <BookmarkCheck className="w-3.5 h-3.5 text-[#2dd4bf]" />
-                            <span className="text-[#2dd4bf]">সংরক্ষিত</span>
-                          </>
-                        ) : (
-                          <>
-                            <Bookmark className="w-3.5 h-3.5" />
-                            <span>বুকমার্ক</span>
-                          </>
-                        )}
-                      </button>
                     </div>
                   )}
                 </div>
@@ -836,6 +784,211 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
           onConfigChange={(newCfg) => setTajweedConfig(newCfg)}
           onShowAlert={onShowAlert}
         />
+
+        {/* Ayah Options Bottom Sheet (100% matches User Screenshot) */}
+        {selectedAyahForSheet && selectedSurah && (
+          <div className="fixed inset-0 z-50 flex flex-col justify-end">
+            {/* Dark Backdrop */}
+            <div
+              className="fixed inset-0 bg-black/75 backdrop-blur-[2px] transition-opacity"
+              onClick={() => setSelectedAyahForSheet(null)}
+            />
+
+            {/* Bottom Sheet Drawer */}
+            <div
+              className="relative z-10 w-full max-w-lg mx-auto bg-[#141b17] border-t border-[#26372c] rounded-t-[28px] shadow-2xl overflow-hidden pb-8 select-none"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Top Drag Handle */}
+              <div className="pt-3 pb-2.5 flex justify-center">
+                <div className="w-12 h-1 rounded-full bg-[#3d4f43]" />
+              </div>
+
+              {/* Header: Exact format 'QS. Al-Fatihah 1: Verse 2' */}
+              <div className="text-center px-4 pb-3.5 border-b border-[#1f2b23]">
+                <h3 className="text-[15px] font-bold text-white tracking-wide">
+                  QS. {selectedSurah.englishName} {selectedSurah.number}: Verse {selectedAyahForSheet.numberInSurah}
+                </h3>
+              </div>
+
+              {/* Options List matching User Screenshot */}
+              <div className="py-2 px-3 space-y-1">
+                {/* 1. Play Murattal (Plays ONLY that specific ayah) */}
+                <button
+                  onClick={() => {
+                    playAyahAudio(selectedAyahForSheet, true);
+                  }}
+                  className="w-full flex items-center gap-4 px-4 py-3.5 text-left rounded-xl hover:bg-[#1a251e] active:bg-[#203027] transition cursor-pointer group"
+                >
+                  {isPlayingAudio && currentPlayingAyah === selectedAyahForSheet.numberInSurah ? (
+                    <>
+                      <Pause className="w-5 h-5 text-teal-400 fill-teal-400 shrink-0" />
+                      <span className="text-[15px] font-medium text-teal-300">
+                        Pause Murattal
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-5 h-5 text-slate-300 group-hover:text-teal-300 shrink-0" />
+                      <span className="text-[15px] font-medium text-slate-200 group-hover:text-white">
+                        Play Murattal
+                      </span>
+                    </>
+                  )}
+                </button>
+
+                {/* 2. View Translation */}
+                <button
+                  onClick={() => {
+                    if (!showTranslation) {
+                      setShowTranslation(true);
+                      localStorage.setItem('ibadat_quran_show_translat', 'true');
+                    }
+                    setSelectedAyahForSheet(null);
+                    setTimeout(() => {
+                      const el = document.getElementById(`ayah-${selectedAyahForSheet.numberInSurah}`);
+                      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 100);
+                    onShowAlert?.(
+                      `আয়াত ${toBengaliNumber(selectedAyahForSheet.numberInSurah)}-এর অনুবাদ দেখানো হচ্ছে`,
+                      true
+                    );
+                  }}
+                  className="w-full flex items-center gap-4 px-4 py-3.5 text-left rounded-xl hover:bg-[#1a251e] active:bg-[#203027] transition cursor-pointer group"
+                >
+                  <BookOpen className="w-5 h-5 text-slate-300 group-hover:text-teal-300 shrink-0" />
+                  <span className="text-[15px] font-medium text-slate-200 group-hover:text-white">
+                    View Translation
+                  </span>
+                </button>
+
+                {/* 3. Share Verse */}
+                <button
+                  onClick={() => {
+                    const ayah = selectedAyahForSheet;
+                    const translit =
+                      ayah.transliterationBn || arabicToBengaliPronunciation(ayah.textArabic);
+                    const text = `${ayah.textArabic}\n\n${translit ? translit + '\n\n' : ''}${
+                      ayah.translationBn
+                    }\n\n(QS. ${selectedSurah.englishName} ${selectedSurah.number}: Verse ${
+                      ayah.numberInSurah
+                    } - সূরা ${selectedSurah.banglaName})`;
+                    if (navigator.share) {
+                      navigator
+                        .share({
+                          title: `QS. ${selectedSurah.englishName} ${selectedSurah.number}:${ayah.numberInSurah}`,
+                          text: text
+                        })
+                        .catch(() => {});
+                    } else {
+                      navigator.clipboard?.writeText(text);
+                      onShowAlert?.('আয়াত কপি করা হয়েছে (শেয়ার করার জন্য)', true);
+                    }
+                    setSelectedAyahForSheet(null);
+                  }}
+                  className="w-full flex items-center gap-4 px-4 py-3.5 text-left rounded-xl hover:bg-[#1a251e] active:bg-[#203027] transition cursor-pointer group"
+                >
+                  <Share2 className="w-5 h-5 text-slate-300 group-hover:text-teal-300 shrink-0" />
+                  <span className="text-[15px] font-medium text-slate-200 group-hover:text-white">
+                    Share Verse
+                  </span>
+                </button>
+
+                {/* 4. Copy Verse */}
+                <button
+                  onClick={() => {
+                    handleCopyAyah(selectedAyahForSheet);
+                  }}
+                  className="w-full flex items-center gap-4 px-4 py-3.5 text-left rounded-xl hover:bg-[#1a251e] active:bg-[#203027] transition cursor-pointer group"
+                >
+                  {copiedAyahNumber === selectedAyahForSheet.numberInSurah ? (
+                    <>
+                      <Check className="w-5 h-5 text-emerald-400 shrink-0" />
+                      <span className="text-[15px] font-medium text-emerald-300">
+                        কপি হয়েছে (Copied!)
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-5 h-5 text-slate-300 group-hover:text-teal-300 shrink-0" />
+                      <span className="text-[15px] font-medium text-slate-200 group-hover:text-white">
+                        Copy Verse
+                      </span>
+                    </>
+                  )}
+                </button>
+
+                {/* 5. Add / Remove Bookmark */}
+                <button
+                  onClick={() => {
+                    handleToggleBookmark(
+                      selectedSurah.number,
+                      selectedSurah.banglaName,
+                      selectedAyahForSheet.numberInSurah
+                    );
+                    setSelectedAyahForSheet(null);
+                  }}
+                  className="w-full flex items-center gap-4 px-4 py-3.5 text-left rounded-xl hover:bg-[#1a251e] active:bg-[#203027] transition cursor-pointer group"
+                >
+                  {isAyahBookmarked(selectedSurah.number, selectedAyahForSheet.numberInSurah) ? (
+                    <>
+                      <BookmarkCheck className="w-5 h-5 text-teal-400 shrink-0" />
+                      <span className="text-[15px] font-medium text-teal-300">
+                        Remove Bookmark
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <BookmarkPlus className="w-5 h-5 text-slate-300 group-hover:text-teal-300 shrink-0" />
+                      <span className="text-[15px] font-medium text-slate-200 group-hover:text-white">
+                        Add to Bookmark
+                      </span>
+                    </>
+                  )}
+                </button>
+
+                {/* 6. Mark as Last Read */}
+                <button
+                  onClick={() => {
+                    const record = {
+                      surahNumber: selectedSurah.number,
+                      surahName: selectedSurah.banglaName,
+                      surahEnglishName: selectedSurah.englishName,
+                      ayahNumber: selectedAyahForSheet.numberInSurah,
+                      timestamp: Date.now()
+                    };
+                    try {
+                      localStorage.setItem('ibadat_quran_last_read', JSON.stringify(record));
+                    } catch {
+                      // ignore
+                    }
+                    setLastRead(record);
+                    onShowAlert?.(
+                      `সর্বশেষ পঠিত চিহ্নিত করা হয়েছে: QS. ${selectedSurah.englishName} ${selectedSurah.number}: Verse ${selectedAyahForSheet.numberInSurah}`,
+                      true
+                    );
+                    setSelectedAyahForSheet(null);
+                  }}
+                  className="w-full flex items-center gap-4 px-4 py-3.5 text-left rounded-xl hover:bg-[#1a251e] active:bg-[#203027] transition cursor-pointer group"
+                >
+                  <Paperclip className="w-5 h-5 text-slate-300 group-hover:text-teal-300 shrink-0" />
+                  <div className="flex-1 flex items-center justify-between">
+                    <span className="text-[15px] font-medium text-slate-200 group-hover:text-white">
+                      Mark as Last Read
+                    </span>
+                    {lastRead &&
+                      lastRead.surahNumber === selectedSurah.number &&
+                      lastRead.ayahNumber === selectedAyahForSheet.numberInSurah && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-900/60 text-teal-300 border border-teal-700/50">
+                          বর্তমান
+                        </span>
+                      )}
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -1052,13 +1205,51 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
 
         {/* SUBTAB: BOOKMARK LIST */}
         {subTab === 'BOOKMARK' && (
-          <div className="space-y-2.5 py-2">
-            {bookmarks.length === 0 ? (
+          <div className="space-y-3 py-2">
+            {/* Last Read Card */}
+            {lastRead && (
+              <div
+                onClick={() => {
+                  const targetSurah = ALL_SURAHS.find((s) => s.number === lastRead.surahNumber);
+                  if (targetSurah) {
+                    setSelectedSurah(targetSurah);
+                    setTimeout(() => {
+                      const el = document.getElementById(`ayah-${lastRead.ayahNumber}`);
+                      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 400);
+                  }
+                }}
+                className="bg-gradient-to-r from-[#14231b] to-[#162a1f] border border-teal-700/50 hover:border-teal-400/70 rounded-2xl p-3.5 flex items-center justify-between cursor-pointer transition shadow-md group"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-teal-900/70 border border-teal-500/50 flex items-center justify-center text-teal-300 shrink-0">
+                    <Paperclip className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-[11px] font-bold text-teal-400 uppercase tracking-wider">
+                      সর্বশেষ পঠিত (Last Read)
+                    </div>
+                    <div className="text-sm font-bold text-white group-hover:text-teal-200">
+                      QS. {lastRead.surahEnglishName} {lastRead.surahNumber}: Verse {lastRead.ayahNumber}
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      সূরা {lastRead.surahName} • আয়াত {toBengaliNumber(lastRead.ayahNumber)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-xs px-3 py-1.5 rounded-xl bg-teal-800/80 text-teal-200 border border-teal-600/50 group-hover:bg-teal-700 transition font-medium shrink-0">
+                  পড়ুন →
+                </div>
+              </div>
+            )}
+
+            {bookmarks.length === 0 && !lastRead ? (
               <div className="py-16 text-center space-y-2">
                 <BookMarked className="w-10 h-10 text-slate-600 mx-auto stroke-[1.5]" />
                 <div className="text-sm font-medium text-slate-300">কোনো বুকমার্ক পাওয়া যায়নি</div>
                 <div className="text-xs text-slate-500 max-w-xs mx-auto">
-                  সূরা পড়ার সময় বুকমার্ক আইকনে ক্লিক করে যে কোনো সূরা বা আয়াত সংরক্ষণ করতে পারেন।
+                  সূরা পড়ার সময় আয়াতের বারে ক্লিক করে বুকমার্ক বা সর্বশেষ পঠিত হিসেবে সংরক্ষণ করতে পারেন।
                 </div>
               </div>
             ) : (

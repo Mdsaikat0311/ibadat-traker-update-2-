@@ -252,6 +252,7 @@ export const App: React.FC = () => {
   useEffect(() => {
     refreshFirebaseMetrics();
     NotificationService.syncAllCordovaReminders(repository.getReminders());
+    NotificationService.scheduleFardSalahNotifications();
     if (repository.isAutoHadithEnabled()) {
       NotificationService.scheduleCordovaHadithReminders(60);
     }
@@ -265,6 +266,8 @@ export const App: React.FC = () => {
     const unsubscribe = NotificationService.onDeviceReady(() => {
       console.log('App: Cordova device is ready! Resyncing all reminders to Android AlarmManager...');
       NotificationService.syncAllCordovaReminders(repository.getReminders());
+      NotificationService.scheduleFardSalahNotifications();
+      NotificationService.scheduleDynamicNightlyNotifications();
       if (repository.isAutoHadithEnabled()) {
         NotificationService.scheduleCordovaHadithReminders(60);
       }

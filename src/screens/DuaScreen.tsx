@@ -318,7 +318,7 @@ export const DuaScreen: React.FC<DuaScreenProps> = ({ onShowAlert }) => {
                   <div className="flex items-center gap-2">
                     {/* Count Pill */}
                     <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#182d20] text-[#4ade80] font-medium border border-[#21432e]">
-                      {cat.count}টি
+                      {cat.duas?.length || cat.count}টি
                     </span>
                     <ChevronRight className="w-4 h-4 text-[#4f6456] group-hover:text-[#4ade80] group-hover:translate-x-0.5 transition-all" />
                   </div>
