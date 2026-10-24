@@ -10,9 +10,7 @@ import { LeaderboardDialog } from './components/dialogs/LeaderboardDialog';
 import { CustomAlertDialog } from './components/dialogs/CustomAlertDialog';
 import { getRandomQuote } from './data/hadithBank';
 
-import { SalahScreen } from './screens/SalahScreen';
-import { AmalScreen } from './screens/AmalScreen';
-import { DhikrScreen } from './screens/DhikrScreen';
+import { AmalnamaScreen, AmalnamaSubTab } from './screens/AmalnamaScreen';
 import { NotesScreen } from './screens/NotesScreen';
 import { ReportsScreen } from './screens/ReportsScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
@@ -39,8 +37,24 @@ import {
 } from './services/firebase';
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<TabId>('salah');
+  const [activeTab, setActiveTab] = useState<TabId>('amalnama');
+  const [amalnamaSubTab, setAmalnamaSubTab] = useState<AmalnamaSubTab>('salah');
   const [currentViewingDate, setCurrentViewingDate] = useState<string>(repository.getTodayKey());
+
+  const handleTabChange = useCallback((tab: TabId) => {
+    if (tab === 'salah') {
+      setActiveTab('amalnama');
+      setAmalnamaSubTab('salah');
+    } else if (tab === 'quran') {
+      setActiveTab('amalnama');
+      setAmalnamaSubTab('amal');
+    } else if (tab === 'dhikr') {
+      setActiveTab('amalnama');
+      setAmalnamaSubTab('dhikr');
+    } else {
+      setActiveTab(tab);
+    }
+  }, []);
 
   // Firebase Auth State
   const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
@@ -516,20 +530,33 @@ export const App: React.FC = () => {
   // Header display calculations
   const headerInfo = useMemo(() => {
     switch (activeTab) {
-      case 'salah': {
-        const fardKeys = ["fajr", "zuhr", "asr", "maghrib", "isha"];
-        const todaySalah = repository.getLog("salah", repository.getTodayKey());
-        const fardCompleted = fardKeys.filter((k) => todaySalah[k]).length;
-        return {
-          title: "সালাত ও তাহাজ্জুদ",
-          subtitle: `${fardCompleted}/৫ ফরয সম্পন্ন`
-        };
-      }
+      case 'amalnama':
+      case 'salah':
       case 'quran':
-        return {
-          title: "দৈনিক আমল ও কুরআন",
-          subtitle: `আজকের পয়েন্ট: ${appStats.todayPoints}`
-        };
+      case 'dhikr': {
+        if (amalnamaSubTab === 'salah') {
+          const fardKeys = ["fajr", "zuhr", "asr", "maghrib", "isha"];
+          const todaySalah = repository.getLog("salah", repository.getTodayKey());
+          const fardCompleted = fardKeys.filter((k) => todaySalah[k]).length;
+          return {
+            title: "আমলনামা",
+            subtitle: `${fardCompleted}/৫ ফরয সালাত`
+          };
+        } else if (amalnamaSubTab === 'amal') {
+          return {
+            title: "আমলনামা",
+            subtitle: `আজকের পয়েন্ট: ${appStats.todayPoints}`
+          };
+        } else {
+          const todayDhikr = repository.getLog("dhikr", repository.getTodayKey());
+          const visibleTasks = IbadatRepository.DHIKR_CHECKLIST_TASKS.filter((t) => !t.hidden);
+          const dhikrCompleted = visibleTasks.filter((t) => todayDhikr[t.key]).length;
+          return {
+            title: "আমলনামা",
+            subtitle: `${dhikrCompleted}/${visibleTasks.length} যিকির সম্পন্ন`
+          };
+        }
+      }
       case 'dua':
         return {
           title: "দোয়া ও মোনাজাত",
@@ -543,17 +570,8 @@ export const App: React.FC = () => {
       case 'more':
         return {
           title: "অন্যান্য ফিচারসমূহ",
-          subtitle: "যিকির, রিপোর্ট, নোট ও সেটিংস"
+          subtitle: "রিপোর্ট, নোট ও সেটিংস"
         };
-      case 'dhikr': {
-        const todayDhikr = repository.getLog("dhikr", repository.getTodayKey());
-        const visibleTasks = IbadatRepository.DHIKR_CHECKLIST_TASKS.filter((t) => !t.hidden);
-        const dhikrCompleted = visibleTasks.filter((t) => todayDhikr[t.key]).length;
-        return {
-          title: "যিকির চেকলিস্ট",
-          subtitle: `${dhikrCompleted}/${visibleTasks.length} সম্পন্ন`
-        };
-      }
       case 'duaNotes':
         return {
           title: "গুরুত্বপূর্ণ দু’আ/নোট",
@@ -571,11 +589,11 @@ export const App: React.FC = () => {
         };
       default:
         return {
-          title: "ইবাদত ট্র্যাকার",
+          title: "আমলনামা",
           subtitle: `আজকের পয়েন্ট: ${appStats.todayPoints}`
         };
     }
-  }, [activeTab, duaNotes.length, appStats.todayPoints, appStats.totalLifetimePoints, currentUser]);
+  }, [activeTab, amalnamaSubTab, duaNotes.length, appStats.todayPoints, appStats.totalLifetimePoints, currentUser]);
 
   const dateDisplayStr = useMemo(() => {
     if (isViewingToday) return "আজকের দিন";
@@ -592,8 +610,13 @@ export const App: React.FC = () => {
 
   return (
     <div className="main-container">
-      {/* Header */}
-      {activeTab !== 'dua' && activeTab !== 'hadith' && (
+      {/* Header - Hidden on Amalnama, Dua, and Hadith */}
+      {activeTab !== 'dua' &&
+        activeTab !== 'hadith' &&
+        activeTab !== 'amalnama' &&
+        activeTab !== 'salah' &&
+        activeTab !== 'quran' &&
+        activeTab !== 'dhikr' && (
         <AppHeader
           title={headerInfo.title}
           subtitle={headerInfo.subtitle}
@@ -605,8 +628,12 @@ export const App: React.FC = () => {
 
       {/* Main Content */}
       <main id="app-main-content" className={`flex-grow space-y-6 overflow-y-auto pb-24 ${activeTab === 'dua' || activeTab === 'hadith' ? 'p-4 bg-[#111613]' : 'p-4'}`}>
-        {activeTab === 'salah' && (
-          <SalahScreen
+        {(activeTab === 'amalnama' || activeTab === 'salah' || activeTab === 'quran' || activeTab === 'dhikr') && (
+          <AmalnamaScreen
+            currentSubTab={amalnamaSubTab}
+            onSubTabChange={setAmalnamaSubTab}
+            dateDisplayStr={dateDisplayStr}
+            onGoToToday={handleGoToToday}
             appStats={appStats}
             yesterdayChampion={yesterdayChampion}
             salahLog={salahLog}
@@ -620,6 +647,13 @@ export const App: React.FC = () => {
             onOpenLeaderboard={(metric, title) => setLeaderboardModal({ metric, title })}
             getMyRank={getMyRank}
             getTaskStats={handleGetTaskStats}
+            specialAmalLog={specialAmalLog}
+            morningLog={morningLog}
+            nightlyLog={nightlyLog}
+            quranLog={quranLog}
+            onToggleRoutineTask={handleToggleRoutineTask}
+            dhikrLog={dhikrLog}
+            onToggleDhikr={handleToggleDhikr}
           />
         )}
 
@@ -629,32 +663,6 @@ export const App: React.FC = () => {
 
         {activeTab === 'hadith' && (
           <HadithScreen onShowAlert={showAlert} />
-        )}
-
-        {activeTab === 'quran' && (
-          <AmalScreen
-            appStats={appStats}
-            specialAmalLog={specialAmalLog}
-            morningLog={morningLog}
-            nightlyLog={nightlyLog}
-            quranLog={quranLog}
-            reminders={reminders}
-            onToggleRoutineTask={handleToggleRoutineTask}
-            onOpenDetails={(title, content) => setDetailsModal({ title, content })}
-            onOpenReminder={(key, name) => setReminderModal({ key, name })}
-            getTaskStats={handleGetTaskStats}
-          />
-        )}
-
-        {activeTab === 'dhikr' && (
-          <DhikrScreen
-            dhikrLog={dhikrLog}
-            reminders={reminders}
-            onToggleDhikr={handleToggleDhikr}
-            onOpenDetails={(title, content) => setDetailsModal({ title, content })}
-            onOpenReminder={(key, name) => setReminderModal({ key, name })}
-            getTaskStats={handleGetTaskStats}
-          />
         )}
 
         {activeTab === 'duaNotes' && (
@@ -704,13 +712,13 @@ export const App: React.FC = () => {
             appStats={appStats}
             notesCount={duaNotes.length}
             userName={userName}
-            onSelectTab={(tab) => setActiveTab(tab)}
+            onSelectTab={handleTabChange}
           />
         )}
       </main>
 
       {/* Fixed Bottom Navigation */}
-      <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
 
       {/* Modals & Dialogs */}
       {detailsModal && (

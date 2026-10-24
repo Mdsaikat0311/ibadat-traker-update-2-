@@ -54,7 +54,7 @@ export const SalahScreen: React.FC<SalahScreenProps> = ({
   return (
     <div className="space-y-4 pb-20">
       {/* Top Header Section with Yesterday's Champion in the top right */}
-      <div className="flex justify-between items-end mb-4 relative">
+      <div className="hidden">
         <div>
           <h2 className="text-xl font-bold text-gray-800">সালাত ও ইবাদত</h2>
           <p className="text-xs text-gray-500">{bnDateStr}</p>

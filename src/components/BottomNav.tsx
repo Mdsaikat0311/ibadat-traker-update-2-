@@ -1,7 +1,17 @@
 import React from 'react';
-import { Home, BookOpen, Sparkles, BookMarked, LayoutGrid } from 'lucide-react';
+import { ClipboardList, Sparkles, BookMarked, BarChart2, LayoutGrid } from 'lucide-react';
 
-export type TabId = 'salah' | 'dua' | 'quran' | 'hadith' | 'more' | 'dhikr' | 'duaNotes' | 'reports' | 'settings';
+export type TabId =
+  | 'amalnama'
+  | 'salah'
+  | 'dua'
+  | 'quran'
+  | 'hadith'
+  | 'more'
+  | 'dhikr'
+  | 'duaNotes'
+  | 'reports'
+  | 'settings';
 
 interface BottomNavProps {
   activeTab: TabId;
@@ -9,16 +19,16 @@ interface BottomNavProps {
 }
 
 interface NavItem {
-  id: 'salah' | 'dua' | 'quran' | 'hadith' | 'more';
+  id: 'amalnama' | 'dua' | 'hadith' | 'reports' | 'more';
   label: string;
   icon: React.ComponentType<{ className?: string }>;
 }
 
 const PRIMARY_NAV_ITEMS: NavItem[] = [
-  { id: 'salah', label: 'হোম', icon: Home },
+  { id: 'amalnama', label: 'আমলনামা', icon: ClipboardList },
   { id: 'dua', label: 'দোয়া', icon: Sparkles },
-  { id: 'quran', label: 'আমল', icon: BookOpen },
   { id: 'hadith', label: 'হাদিস', icon: BookMarked },
+  { id: 'reports', label: 'রিপোর্ট', icon: BarChart2 },
   { id: 'more', label: 'আরো', icon: LayoutGrid },
 ];
 
@@ -26,17 +36,24 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange }) 
   // Determine if activeTab is one of the secondary tabs belonging to 'more'
   const isMoreActive =
     activeTab === 'more' ||
-    activeTab === 'dhikr' ||
     activeTab === 'duaNotes' ||
-    activeTab === 'reports' ||
     activeTab === 'settings';
+
+  // Determine if activeTab is amalnama or one of its child tabs
+  const isAmalnamaActive =
+    activeTab === 'amalnama' ||
+    activeTab === 'salah' ||
+    activeTab === 'quran' ||
+    activeTab === 'dhikr';
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 max-w-[420px] mx-auto bg-[#0d1410] border-t border-[#1e2a21] shadow-2xl z-40">
       <div id="nav-bar" className="flex justify-around items-center h-16 px-1">
         {PRIMARY_NAV_ITEMS.map((item) => {
           let isActive = false;
-          if (item.id === 'more') {
+          if (item.id === 'amalnama') {
+            isActive = isAmalnamaActive;
+          } else if (item.id === 'more') {
             isActive = isMoreActive;
           } else {
             isActive = activeTab === item.id;
@@ -50,6 +67,8 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange }) 
               onClick={() => {
                 if (item.id === 'more') {
                   onTabChange('more');
+                } else if (item.id === 'amalnama') {
+                  onTabChange('amalnama');
                 } else {
                   onTabChange(item.id);
                 }
@@ -81,3 +100,4 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange }) 
     </nav>
   );
 };
+
