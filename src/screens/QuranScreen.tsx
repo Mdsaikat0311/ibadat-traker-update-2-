@@ -22,8 +22,7 @@ import {
   Palette,
   SkipBack,
   SkipForward,
-  Square,
-  GripVertical
+  Square
 } from 'lucide-react';
 import {
   ALL_SURAHS,
@@ -52,9 +51,10 @@ type QuranSubTab = 'SURAH' | 'JUZ' | 'BOOKMARK';
 
 interface QuranScreenProps {
   onShowAlert?: (message: string, isSuccess: boolean) => void;
+  onReadingChange?: (isReading: boolean) => void;
 }
 
-export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
+export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert, onReadingChange }) => {
   // Navigation & Subtabs
   const [subTab, setSubTab] = useState<QuranSubTab>('SURAH');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -68,8 +68,14 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
 
   // Audio Playback & Repeater State (Screenshots 1 & 2)
   const [currentPlayingAyah, setCurrentPlayingAyah] = useState<number | null>(null);
+  const [currentPlayingSurahNumber, setCurrentPlayingSurahNumber] = useState<number | null>(null);
   const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Notify parent whether in full-screen reader view
+  useEffect(() => {
+    onReadingChange?.(selectedSurah !== null);
+  }, [selectedSurah, onReadingChange]);
 
   const [showRepeaterModal, setShowRepeaterModal] = useState<boolean>(false);
   const [repeaterConfig, setRepeaterConfig] = useState<{
@@ -267,6 +273,48 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
     }));
   };
 
+  const playingSurahMeta = useMemo(() => {
+    const sNum = currentPlayingSurahNumber || selectedSurah?.number;
+    if (!sNum) return selectedSurah;
+    return ALL_SURAHS.find((s) => s.number === sNum) || selectedSurah;
+  }, [currentPlayingSurahNumber, selectedSurah]);
+
+  // Background MediaSession API integration (keeps audio running outside app, on lock screen, and notification shade)
+  const updateMediaSession = (surahNum: number, ayahNum: number, isPlaying: boolean) => {
+    if (typeof window !== 'undefined' && 'mediaSession' in navigator) {
+      const sMeta = ALL_SURAHS.find((s) => s.number === surahNum);
+      const title = sMeta
+        ? `সূরা ${sMeta.banglaName} (আয়াত ${ayahNum})`
+        : `আয়াত ${ayahNum}`;
+      const artist = sMeta
+        ? `QS. ${sMeta.englishName} ${surahNum}: Verse ${ayahNum}`
+        : 'আল-কুরআনুল কারীম';
+
+      try {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title,
+          artist,
+          album: 'আল-কুরআনুল কারীম (ইবাদত ট্র্যাকার)',
+          artwork: [
+            { src: '/app-icon.jpg', sizes: '512x512', type: 'image/jpeg' },
+            { src: '/app-icon.jpg', sizes: '192x192', type: 'image/jpeg' },
+            { src: '/app-icon.jpg', sizes: '96x96', type: 'image/jpeg' }
+          ]
+        });
+
+        navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+
+        navigator.mediaSession.setActionHandler('play', () => handleTogglePlay());
+        navigator.mediaSession.setActionHandler('pause', () => handleTogglePlay());
+        navigator.mediaSession.setActionHandler('previoustrack', () => handlePrevAyah());
+        navigator.mediaSession.setActionHandler('nexttrack', () => handleNextAyah());
+        navigator.mediaSession.setActionHandler('stop', () => stopAudio());
+      } catch (err) {
+        console.warn('MediaSession error:', err);
+      }
+    }
+  };
+
   // Audio Playback & Repeater Engine
   const stopAudio = () => {
     if (audioRef.current) {
@@ -275,8 +323,14 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
     }
     setIsPlayingAudio(false);
     setCurrentPlayingAyah(null);
+    setCurrentPlayingSurahNumber(null);
     verseRepeatCountRef.current = 1;
     allRepeatCountRef.current = 1;
+    if (typeof window !== 'undefined' && 'mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.playbackState = 'none';
+      } catch {}
+    }
   };
 
   const playSingleAyahAudio = (ayah: Ayah, surahNumber: number = selectedSurah?.number || 1) => {
@@ -287,6 +341,7 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
 
     if (!audioRef.current) {
       audioRef.current = new Audio();
+      audioRef.current.preload = 'auto';
     }
 
     audioRef.current.src = ayah.audioUrl;
@@ -296,6 +351,8 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
       .then(() => {
         setIsPlayingAudio(true);
         setCurrentPlayingAyah(ayah.numberInSurah);
+        setCurrentPlayingSurahNumber(surahNumber);
+        updateMediaSession(surahNumber, ayah.numberInSurah, true);
         setTimeout(() => {
           document.getElementById(`ayah-${ayah.numberInSurah}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 100);
@@ -342,6 +399,12 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
       } else {
         setIsPlayingAudio(false);
         setCurrentPlayingAyah(null);
+        setCurrentPlayingSurahNumber(null);
+        if (typeof window !== 'undefined' && 'mediaSession' in navigator) {
+          try {
+            navigator.mediaSession.playbackState = 'none';
+          } catch {}
+        }
       }
       return;
     }
@@ -406,7 +469,7 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
 
   const handlePrevAyah = () => {
     const currentAyah = currentPlayingAyah || 1;
-    const currentSurah = selectedSurah?.number || 1;
+    const currentSurah = currentPlayingSurahNumber || selectedSurah?.number || 1;
     if (currentAyah > 1) {
       playVerse(currentSurah, currentAyah - 1);
     } else if (currentSurah > 1) {
@@ -419,8 +482,9 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
 
   const handleNextAyah = () => {
     const currentAyah = currentPlayingAyah || 1;
-    const currentSurah = selectedSurah?.number || 1;
-    const total = selectedSurah?.numberOfAyahs || ayahs.length;
+    const currentSurah = currentPlayingSurahNumber || selectedSurah?.number || 1;
+    const sMeta = ALL_SURAHS.find((s) => s.number === currentSurah);
+    const total = sMeta?.numberOfAyahs || ayahs.length || 7;
     if (currentAyah < total) {
       playVerse(currentSurah, currentAyah + 1);
     } else if (currentSurah < 114) {
@@ -432,10 +496,28 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
     if (isPlayingAudio) {
       if (audioRef.current) audioRef.current.pause();
       setIsPlayingAudio(false);
+      const sNum = currentPlayingSurahNumber || selectedSurah?.number || 1;
+      const aNum = currentPlayingAyah || 1;
+      updateMediaSession(sNum, aNum, false);
     } else {
-      const startAyah = currentPlayingAyah || (repeaterConfig.enabled ? repeaterConfig.fromAyah : 1);
-      const startSurah = repeaterConfig.enabled ? repeaterConfig.fromSurah : (selectedSurah?.number || 1);
-      playVerse(startSurah, startAyah);
+      if (audioRef.current && audioRef.current.src && currentPlayingAyah) {
+        audioRef.current
+          .play()
+          .then(() => {
+            setIsPlayingAudio(true);
+            const sNum = currentPlayingSurahNumber || selectedSurah?.number || 1;
+            updateMediaSession(sNum, currentPlayingAyah, true);
+          })
+          .catch(() => {
+            const startAyah = currentPlayingAyah || (repeaterConfig.enabled ? repeaterConfig.fromAyah : 1);
+            const startSurah = currentPlayingSurahNumber || (repeaterConfig.enabled ? repeaterConfig.fromSurah : (selectedSurah?.number || 1));
+            playVerse(startSurah, startAyah);
+          });
+      } else {
+        const startAyah = currentPlayingAyah || (repeaterConfig.enabled ? repeaterConfig.fromAyah : 1);
+        const startSurah = currentPlayingSurahNumber || (repeaterConfig.enabled ? repeaterConfig.fromSurah : (selectedSurah?.number || 1));
+        playVerse(startSurah, startAyah);
+      }
     }
   };
 
@@ -558,7 +640,6 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
           <div className="flex items-center space-x-2.5 min-w-0">
             <button
               onClick={() => {
-                stopAudio();
                 setSelectedSurah(null);
               }}
               className="p-1.5 -ml-1 text-slate-300 hover:text-white rounded-lg active:bg-slate-800 transition cursor-pointer shrink-0"
@@ -652,7 +733,9 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
         </header>
 
         {/* Reader Body Content */}
-        <div className="flex-1 px-3 py-3 max-w-xl mx-auto w-full space-y-3 pb-24">
+        <div className={`flex-1 px-3 py-3 max-w-xl mx-auto w-full space-y-3 transition-all ${
+          currentPlayingAyah !== null ? 'pb-36' : 'pb-16'
+        }`}>
           {/* Ornate Islamic Framed Banner (100% matches Screenshot) */}
           <div className="relative rounded-lg overflow-hidden border border-[#8f7347]/90 bg-[#121915] p-2 shadow-md">
             {/* Arabesque filigree decorative border overlay */}
@@ -853,76 +936,103 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
           )}
         </div>
 
-        {/* Docked Quran Audio Player Bar (Matching User Screenshot 1) */}
-        {selectedSurah && (
-          <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#0e1412]/95 border-t border-[#1a251e] shadow-2xl backdrop-blur-md pt-2.5 pb-4 px-4 flex flex-col items-center max-w-[420px] mx-auto">
-            {/* Top Pill with Surah & Verse info */}
-            <div className="flex items-center justify-center gap-2.5 px-4 py-1.5 rounded-full bg-[#18211d] border border-[#2b3a32] shadow-md text-xs font-medium text-slate-200">
-              <GripVertical className="w-3.5 h-3.5 text-slate-500 opacity-60 shrink-0" />
-              <span className="tracking-wide select-none">
-                QS. {selectedSurah.englishName} {selectedSurah.number}: Verse {currentPlayingAyah || 1}
+        {/* Docked Quran Audio Player Bar (100% matches User Screenshot - z-50 unobstructed) */}
+        {(isPlayingAudio || currentPlayingAyah !== null) && selectedSurah && (
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#0c0f0d]/98 border-t border-[#4a3628] shadow-[0_-8px_30px_rgba(0,0,0,0.9)] backdrop-blur-md pt-2 pb-6 px-4 flex flex-col items-center max-w-[420px] mx-auto animate-in slide-in-from-bottom duration-300">
+            {/* Top Pill with Surah & Verse info and 9-dot rosette ornaments */}
+            <div className="flex items-center justify-center gap-3 px-5 py-1.5 rounded-full bg-[#251b14] border border-[#443226] shadow-md text-xs font-medium text-[#dfc5ac]">
+              <svg className="w-3.5 h-3.5 text-[#bfa085] opacity-80 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="12" cy="12" r="2.2" />
+                <circle cx="6" cy="12" r="1.8" />
+                <circle cx="18" cy="12" r="1.8" />
+                <circle cx="12" cy="6" r="1.8" />
+                <circle cx="12" cy="18" r="1.8" />
+                <circle cx="7.8" cy="7.8" r="1.6" />
+                <circle cx="16.2" cy="7.8" r="1.6" />
+                <circle cx="7.8" cy="16.2" r="1.6" />
+                <circle cx="16.2" cy="16.2" r="1.6" />
+              </svg>
+              <span className="tracking-wide select-none font-medium">
+                QS. {playingSurahMeta?.englishName || selectedSurah.englishName} {playingSurahMeta?.number || selectedSurah.number}: Verse {currentPlayingAyah || 1}
               </span>
-              <GripVertical className="w-3.5 h-3.5 text-slate-500 opacity-60 shrink-0" />
+              <svg className="w-3.5 h-3.5 text-[#bfa085] opacity-80 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="12" cy="12" r="2.2" />
+                <circle cx="6" cy="12" r="1.8" />
+                <circle cx="18" cy="12" r="1.8" />
+                <circle cx="12" cy="6" r="1.8" />
+                <circle cx="12" cy="18" r="1.8" />
+                <circle cx="7.8" cy="7.8" r="1.6" />
+                <circle cx="16.2" cy="7.8" r="1.6" />
+                <circle cx="7.8" cy="16.2" r="1.6" />
+                <circle cx="16.2" cy="16.2" r="1.6" />
+              </svg>
             </div>
 
             {/* Player Controls Row (Settings, Prev, Play/Pause, Next, Stop) */}
-            <div className="flex items-center justify-between w-full max-w-xs px-2 pt-1 text-slate-300">
+            <div className="flex items-center justify-between w-full max-w-xs px-2 pt-2.5 pb-1 text-white">
+              {/* Settings button */}
               <button
                 type="button"
                 onClick={() => {
+                  const sNum = currentPlayingSurahNumber || selectedSurah.number;
+                  const sMeta = ALL_SURAHS.find((s) => s.number === sNum);
                   setRepeaterDraft({
                     ...repeaterConfig,
-                    fromSurah: selectedSurah.number,
+                    fromSurah: sNum,
                     fromAyah: currentPlayingAyah || 1,
-                    toSurah: selectedSurah.number,
-                    toAyah: selectedSurah.numberOfAyahs
+                    toSurah: sNum,
+                    toAyah: sMeta?.numberOfAyahs || selectedSurah.numberOfAyahs || 7
                   });
                   setShowRepeaterModal(true);
                 }}
-                className="p-2 hover:text-white active:scale-95 transition cursor-pointer text-slate-300"
-                title="Set Repeater / রিপিট ও স্পিড সেটিংস"
+                className="p-2 hover:text-slate-300 active:scale-90 transition cursor-pointer text-slate-100"
+                title="সেটিংস ও রিপিটার (Set Repeater)"
               >
-                <SettingsIcon className="w-5 h-5 text-slate-300 hover:rotate-45 transition-transform" />
+                <SettingsIcon className="w-5 h-5 text-slate-200 hover:rotate-45 transition-transform" />
               </button>
 
+              {/* Prev button */}
               <button
                 type="button"
                 onClick={handlePrevAyah}
-                className="p-2 hover:text-white active:scale-95 transition cursor-pointer text-slate-300"
-                title="Previous Verse"
+                className="p-2 hover:text-slate-300 active:scale-90 transition cursor-pointer text-slate-100"
+                title="পূর্ববর্তী আয়াত (Previous Verse)"
               >
-                <SkipBack className="w-5 h-5 fill-current" />
+                <SkipBack className="w-5 h-5 fill-white text-white" />
               </button>
 
+              {/* Play / Pause button */}
               <button
                 type="button"
                 onClick={handleTogglePlay}
-                className="p-2.5 hover:text-teal-300 active:scale-95 transition cursor-pointer text-white"
+                className="p-2 active:scale-90 transition cursor-pointer text-white flex items-center justify-center"
                 title={isPlayingAudio ? 'Pause' : 'Play'}
               >
                 {isPlayingAudio ? (
-                  <Pause className="w-7 h-7 fill-current text-white hover:text-teal-300" />
+                  <Pause className="w-8 h-8 fill-white text-white stroke-none drop-shadow-sm" />
                 ) : (
-                  <Play className="w-7 h-7 fill-current text-white hover:text-teal-300 ml-0.5" />
+                  <Play className="w-8 h-8 fill-white text-white ml-0.5 stroke-none drop-shadow-sm" />
                 )}
               </button>
 
+              {/* Next button */}
               <button
                 type="button"
                 onClick={handleNextAyah}
-                className="p-2 hover:text-white active:scale-95 transition cursor-pointer text-slate-300"
-                title="Next Verse"
+                className="p-2 hover:text-slate-300 active:scale-90 transition cursor-pointer text-slate-100"
+                title="পরবর্তী আয়াত (Next Verse)"
               >
-                <SkipForward className="w-5 h-5 fill-current" />
+                <SkipForward className="w-5 h-5 fill-white text-white" />
               </button>
 
+              {/* Stop button */}
               <button
                 type="button"
                 onClick={stopAudio}
-                className="p-2 hover:text-red-400 active:scale-95 transition cursor-pointer text-slate-300"
-                title="Stop"
+                className="p-2 hover:text-red-400 active:scale-90 transition cursor-pointer text-slate-100"
+                title="বন্ধ করুন (Stop)"
               >
-                <Square className="w-5 h-5 fill-current text-slate-300 hover:text-red-400" />
+                <Square className="w-5 h-5 fill-white text-white hover:text-red-400 rounded-xs" />
               </button>
             </div>
           </div>
@@ -1767,6 +1877,110 @@ export const QuranScreen: React.FC<QuranScreenProps> = ({ onShowAlert }) => {
           </div>
         )}
       </div>
+
+      {/* Floating Audio Player when in Surah List/Tabs (Docked right above BottomNav at bottom-16) */}
+      {(isPlayingAudio || currentPlayingAyah !== null) && !selectedSurah && (
+        <div className="fixed bottom-16 left-0 right-0 z-50 bg-[#0c0f0d]/98 border-t border-[#4a3628] shadow-[0_-8px_30px_rgba(0,0,0,0.9)] backdrop-blur-md pt-2 pb-2 px-4 flex flex-col items-center max-w-[420px] mx-auto animate-in slide-in-from-bottom duration-200">
+          {/* Top Pill - clickable to return to the playing Surah */}
+          <div
+            onClick={() => {
+              const meta = ALL_SURAHS.find((s) => s.number === (currentPlayingSurahNumber || 1));
+              if (meta) setSelectedSurah(meta);
+            }}
+            className="flex items-center justify-center gap-3 px-5 py-1.5 rounded-full bg-[#251b14] border border-[#443226] shadow-md text-xs font-medium text-[#dfc5ac] cursor-pointer hover:bg-[#32231b] transition"
+            title="সূরা ভিউতে ফিরে যান"
+          >
+            <svg className="w-3.5 h-3.5 text-[#bfa085] opacity-80 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+              <circle cx="12" cy="12" r="2.2" />
+              <circle cx="6" cy="12" r="1.8" />
+              <circle cx="18" cy="12" r="1.8" />
+              <circle cx="12" cy="6" r="1.8" />
+              <circle cx="12" cy="18" r="1.8" />
+              <circle cx="7.8" cy="7.8" r="1.6" />
+              <circle cx="16.2" cy="7.8" r="1.6" />
+              <circle cx="7.8" cy="16.2" r="1.6" />
+              <circle cx="16.2" cy="16.2" r="1.6" />
+            </svg>
+            <span className="tracking-wide select-none font-medium truncate max-w-[260px]">
+              QS. {playingSurahMeta?.englishName || 'Al-Quran'} {playingSurahMeta?.number || 1}: Verse {currentPlayingAyah || 1}
+            </span>
+            <svg className="w-3.5 h-3.5 text-[#bfa085] opacity-80 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+              <circle cx="12" cy="12" r="2.2" />
+              <circle cx="6" cy="12" r="1.8" />
+              <circle cx="18" cy="12" r="1.8" />
+              <circle cx="12" cy="6" r="1.8" />
+              <circle cx="12" cy="18" r="1.8" />
+              <circle cx="7.8" cy="7.8" r="1.6" />
+              <circle cx="16.2" cy="7.8" r="1.6" />
+              <circle cx="7.8" cy="16.2" r="1.6" />
+              <circle cx="16.2" cy="16.2" r="1.6" />
+            </svg>
+          </div>
+
+          {/* Controls Row */}
+          <div className="flex items-center justify-between w-full max-w-xs px-2 pt-1.5 pb-1 text-white">
+            <button
+              type="button"
+              onClick={() => {
+                const sNum = currentPlayingSurahNumber || 1;
+                const sMeta = ALL_SURAHS.find((s) => s.number === sNum);
+                setRepeaterDraft({
+                  ...repeaterConfig,
+                  fromSurah: sNum,
+                  fromAyah: currentPlayingAyah || 1,
+                  toSurah: sNum,
+                  toAyah: sMeta?.numberOfAyahs || 7
+                });
+                setShowRepeaterModal(true);
+              }}
+              className="p-1.5 hover:text-slate-300 active:scale-90 transition cursor-pointer text-slate-100"
+              title="সেটিংস ও রিপিটার"
+            >
+              <SettingsIcon className="w-5 h-5 text-slate-200" />
+            </button>
+
+            <button
+              type="button"
+              onClick={handlePrevAyah}
+              className="p-1.5 hover:text-slate-300 active:scale-90 transition cursor-pointer text-slate-100"
+              title="পূর্ববর্তী আয়াত"
+            >
+              <SkipBack className="w-5 h-5 fill-white text-white" />
+            </button>
+
+            <button
+              type="button"
+              onClick={handleTogglePlay}
+              className="p-1.5 active:scale-90 transition cursor-pointer text-white"
+              title={isPlayingAudio ? 'Pause' : 'Play'}
+            >
+              {isPlayingAudio ? (
+                <Pause className="w-7 h-7 fill-white text-white stroke-none drop-shadow-sm" />
+              ) : (
+                <Play className="w-7 h-7 fill-white text-white ml-0.5 stroke-none drop-shadow-sm" />
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleNextAyah}
+              className="p-1.5 hover:text-slate-300 active:scale-90 transition cursor-pointer text-slate-100"
+              title="পরবর্তী আয়াত"
+            >
+              <SkipForward className="w-5 h-5 fill-white text-white" />
+            </button>
+
+            <button
+              type="button"
+              onClick={stopAudio}
+              className="p-1.5 hover:text-red-400 active:scale-90 transition cursor-pointer text-slate-100"
+              title="বন্ধ করুন"
+            >
+              <Square className="w-5 h-5 fill-white text-white hover:text-red-400 rounded-xs" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -85,6 +85,7 @@ export const App: React.FC = () => {
   const [autoHadithEnabled, setAutoHadithEnabled] = useState<boolean>(repository.isAutoHadithEnabled());
   const [generalReminder, setGeneralReminder] = useState(repository.getGeneralReminder());
   const [lifetimeStartDate, setLifetimeStartDate] = useState<string>(repository.getLifetimeStartDate());
+  const [isQuranReading, setIsQuranReading] = useState<boolean>(false);
 
   // Live Firebase User Ranks cache
   const [userRanks, setUserRanks] = useState<Record<string, number>>({});
@@ -735,9 +736,13 @@ export const App: React.FC = () => {
           />
         )}
 
-        {activeTab === 'quran' && (
-          <QuranScreen onShowAlert={showAlert} />
-        )}
+        {/* Quran Screen: kept mounted to allow background recitation across tabs */}
+        <div className={activeTab === 'quran' ? 'contents' : 'hidden'}>
+          <QuranScreen
+            onShowAlert={showAlert}
+            onReadingChange={setIsQuranReading}
+          />
+        </div>
 
         {activeTab === 'dua' && (
           <DuaScreen
@@ -802,8 +807,10 @@ export const App: React.FC = () => {
         )}
       </main>
 
-      {/* Fixed Bottom Navigation */}
-      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
+      {/* Fixed Bottom Navigation (hidden during full-screen Quran reading so audio player is unobstructed) */}
+      {!(activeTab === 'quran' && isQuranReading) && (
+        <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
+      )}
 
       {/* Modals & Dialogs */}
       {detailsModal && (
