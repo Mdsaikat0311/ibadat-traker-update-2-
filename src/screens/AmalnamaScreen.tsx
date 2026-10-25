@@ -50,6 +50,7 @@ export const AmalnamaScreen: React.FC<AmalnamaScreenProps> = ({
   onGoToToday,
   onOpenSettings,
   appStats,
+  yesterdayChampion,
   salahLog,
   nawafilLog,
   reminders,
@@ -248,6 +249,7 @@ export const AmalnamaScreen: React.FC<AmalnamaScreenProps> = ({
         {currentSubTab === 'salah' && (
           <SalahScreen
             appStats={appStats}
+            yesterdayChampion={yesterdayChampion}
             salahLog={salahLog}
             nawafilLog={nawafilLog}
             reminders={reminders}

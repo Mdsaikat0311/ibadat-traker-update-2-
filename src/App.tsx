@@ -114,6 +114,7 @@ export const App: React.FC = () => {
 
     const updatedStats = repository.getAppStats(currentViewingDate);
     setAppStats(updatedStats);
+    setYesterdayChampion(repository.getYesterdayChampion());
     setDuaNotes(repository.getDuaNotes());
     setReminders(repository.getReminders());
     setUserName(repository.getUserName());

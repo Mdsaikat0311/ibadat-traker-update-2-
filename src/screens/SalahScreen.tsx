@@ -8,12 +8,14 @@ import {
   Moon
 } from 'lucide-react';
 import { IbadatRepository } from '../data/repository';
-import { AppStats, TaskStats, ReminderSetting } from '../types/ibadat';
+import { AppStats, TaskStats, ReminderSetting, ChampionInfo } from '../types/ibadat';
 import { StatsGrid } from '../components/StatsGrid';
 import { TaskStatsRow } from '../components/TaskStatsRow';
+import { YesterdayChampionCard } from '../components/YesterdayChampionCard';
 
 interface SalahScreenProps {
   appStats: AppStats;
+  yesterdayChampion?: ChampionInfo | null;
   salahLog: Record<string, boolean>;
   nawafilLog: Record<string, boolean>;
   reminders: Record<string, ReminderSetting>;
@@ -29,6 +31,7 @@ interface SalahScreenProps {
 
 export const SalahScreen: React.FC<SalahScreenProps> = ({
   appStats,
+  yesterdayChampion,
   salahLog,
   nawafilLog,
   reminders,
@@ -50,11 +53,16 @@ export const SalahScreen: React.FC<SalahScreenProps> = ({
   return (
     <div className="space-y-4 pb-20">
       {/* Top Header Section */}
-      <div className="flex justify-between items-end mb-2">
+      <div className="flex justify-between items-end mb-2 relative gap-2">
         <div>
           <h2 className="text-xl font-bold text-gray-800">সালাত ও ইবাদত</h2>
           {bnDateStr && <p className="text-xs text-gray-500">{bnDateStr}</p>}
         </div>
+
+        <YesterdayChampionCard
+          champion={yesterdayChampion}
+          onClick={() => onOpenLeaderboard('yesterdayPoints', 'গতকালকের সেরা')}
+        />
       </div>
 
       {/* 7 Stats Grid */}
