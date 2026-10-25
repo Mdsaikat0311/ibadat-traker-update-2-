@@ -142,9 +142,7 @@ export const App: React.FC = () => {
       setYesterdayChampion(champ);
     }
 
-    // Dynamic Nightly Notifications update
-    NotificationService.scheduleDynamicNightlyNotifications();
-
+    // Dynamic Nightly Notifications update moved to background doSync
     if (!auth.currentUser) return;
 
     if (saveTimeoutRef.current) {
@@ -155,6 +153,8 @@ export const App: React.FC = () => {
     const doSync = async () => {
       try {
         await syncStateToFirebase(dateKey, points, stats, repository.getFullState());
+        // Dynamic Nightly Notifications update scheduled in background
+        NotificationService.scheduleDynamicNightlyNotifications();
       } catch (err) {
         console.warn("Failed saving state to Firebase:", err);
       }
@@ -163,7 +163,7 @@ export const App: React.FC = () => {
     if (immediate) {
       doSync();
     } else {
-      saveTimeoutRef.current = setTimeout(doSync, 1000);
+      saveTimeoutRef.current = setTimeout(doSync, 1200);
     }
   }, [currentViewingDate]);
 
@@ -416,7 +416,7 @@ export const App: React.FC = () => {
 
   const handleGetTaskStats = useCallback((category: string, taskKey: string): TaskStats => {
     return repository.getTaskCompletionStats(category, taskKey);
-  }, [communityUpdateTick, currentViewingDate, lifetimeStartDate, salahLog, nawafilLog, dhikrLog, specialAmalLog, morningLog, nightlyLog, quranLog]);
+  }, [communityUpdateTick]);
 
   const handleSaveReminder = (key: string, name: string, start: string, count: number, interval: number) => {
     const setting = { key, name, start, count, interval };

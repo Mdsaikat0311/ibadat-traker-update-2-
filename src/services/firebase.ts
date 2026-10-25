@@ -93,7 +93,10 @@ export function getTotalHistoryPoints(history: Record<string, number> | undefine
 // In-memory cache for all-users snapshot to avoid duplicate heavy network fetches
 let cachedUsersSnapshot: { timestamp: number; snapshot: any } | null = null;
 let activeFetchPromise: Promise<any> | null = null;
-const CACHE_TTL_MS = 20000; // 20 seconds cache
+const CACHE_TTL_MS = 30000; // 30 seconds cache
+
+const leaderboardCache = new Map<string, { timestamp: number; data: LeaderboardUser[] }>();
+const LEADERBOARD_CACHE_TTL = 30000; // 30 seconds cache
 
 export async function fetchAllUsersSnapshot(force = false): Promise<any> {
   const now = Date.now();
@@ -124,6 +127,13 @@ export async function getTopUsersByMetric(
   metricType: string,
   limit = 20
 ): Promise<LeaderboardUser[]> {
+  const cacheKey = `${metricType}_${limit}`;
+  const now = Date.now();
+  const cached = leaderboardCache.get(cacheKey);
+  if (cached && (now - cached.timestamp < LEADERBOARD_CACHE_TTL)) {
+    return cached.data;
+  }
+
   try {
     const snapshot = await fetchAllUsersSnapshot();
 
@@ -285,7 +295,9 @@ export async function getTopUsersByMetric(
     });
 
     const finalLimit = limit === 0 ? rankedUsers.length : limit;
-    return rankedUsers.slice(0, finalLimit);
+    const result = rankedUsers.slice(0, finalLimit);
+    leaderboardCache.set(cacheKey, { timestamp: Date.now(), data: result });
+    return result;
   } catch (error) {
     console.warn("Error calculating leaderboard from Firebase:", error);
     return [];
@@ -509,49 +521,51 @@ export async function fetchUserRanksForMonth(
   }
 }
 
+function parseUsersSnapshot(snapshot: any): CommunityUserState[] {
+  const userList: CommunityUserState[] = [];
+  snapshot.forEach((childSnap: any) => {
+    const uid = childSnap.key || '';
+    const data = childSnap.val() || {};
+    let fullState: any = null;
+    if (data.fullState) {
+      if (typeof data.fullState === 'object') {
+        fullState = data.fullState;
+      } else if (typeof data.fullState === 'string' && data.fullState.length < 35000) {
+        try {
+          fullState = JSON.parse(data.fullState);
+        } catch {}
+      }
+    }
+    if (!fullState || typeof fullState !== 'object') {
+      fullState = {};
+    }
+    if (!fullState.salahLog && data.salahLog) fullState.salahLog = data.salahLog;
+    if (!fullState.nawafilLog && data.nawafilLog) fullState.nawafilLog = data.nawafilLog;
+    if (!fullState.dhikrLog && data.dhikrLog) fullState.dhikrLog = data.dhikrLog;
+    if (!fullState.morningLog && data.morningLog) fullState.morningLog = data.morningLog;
+    if (!fullState.nightlyLog && data.nightlyLog) fullState.nightlyLog = data.nightlyLog;
+    if (!fullState.quranLog && data.quranLog) fullState.quranLog = data.quranLog;
+    if (!fullState.specialAmalLog && data.specialAmalLog) fullState.specialAmalLog = data.specialAmalLog;
+
+    userList.push({
+      uid,
+      name: data.name || 'ব্যবহারকারী',
+      fullState,
+      pointsHistory: data.pointsHistory || {},
+      stats: data.stats || {}
+    });
+  });
+  return userList;
+}
+
 /**
  * Fetch all registered users from Firebase Realtime Database
  */
 export async function fetchAllCommunityUsers(): Promise<CommunityUserState[]> {
   try {
-    const usersRef = ref(db, 'users');
-    const snapshot = await get(usersRef);
-    if (!snapshot.exists()) return [];
-
-    const userList: CommunityUserState[] = [];
-    snapshot.forEach((childSnap) => {
-      const uid = childSnap.key || '';
-      const data = childSnap.val() || {};
-      let fullState: any = null;
-      if (data.fullState) {
-        if (typeof data.fullState === 'string') {
-          try {
-            fullState = JSON.parse(data.fullState);
-          } catch {}
-        } else if (typeof data.fullState === 'object') {
-          fullState = data.fullState;
-        }
-      }
-      if (!fullState || typeof fullState !== 'object') {
-        fullState = {};
-      }
-      if (!fullState.salahLog && data.salahLog) fullState.salahLog = data.salahLog;
-      if (!fullState.nawafilLog && data.nawafilLog) fullState.nawafilLog = data.nawafilLog;
-      if (!fullState.dhikrLog && data.dhikrLog) fullState.dhikrLog = data.dhikrLog;
-      if (!fullState.morningLog && data.morningLog) fullState.morningLog = data.morningLog;
-      if (!fullState.nightlyLog && data.nightlyLog) fullState.nightlyLog = data.nightlyLog;
-      if (!fullState.quranLog && data.quranLog) fullState.quranLog = data.quranLog;
-      if (!fullState.specialAmalLog && data.specialAmalLog) fullState.specialAmalLog = data.specialAmalLog;
-
-      userList.push({
-        uid,
-        name: data.name || 'ব্যবহারকারী',
-        fullState,
-        pointsHistory: data.pointsHistory || {},
-        stats: data.stats || {}
-      });
-    });
-    return userList;
+    const snapshot = await fetchAllUsersSnapshot();
+    if (!snapshot || !snapshot.exists()) return [];
+    return parseUsersSnapshot(snapshot);
   } catch (err) {
     console.warn("fetchAllCommunityUsers error:", err);
     return [];
@@ -579,44 +593,12 @@ export function subscribeCommunityUsers(
         // Cache the latest snapshot
         cachedUsersSnapshot = { timestamp: Date.now(), snapshot };
 
-        // Throttle updates to avoid unnecessary UI churn during rapid user actions
+        // Throttle updates to 15 seconds to prevent freezing UI during continuous user interactions
         if (throttleTimer) clearTimeout(throttleTimer);
         throttleTimer = setTimeout(() => {
-          const userList: CommunityUserState[] = [];
-          snapshot.forEach((childSnap) => {
-            const uid = childSnap.key || '';
-            const data = childSnap.val() || {};
-            let fullState: any = null;
-            if (data.fullState) {
-              if (typeof data.fullState === 'string') {
-                try {
-                  fullState = JSON.parse(data.fullState);
-                } catch {}
-              } else if (typeof data.fullState === 'object') {
-                fullState = data.fullState;
-              }
-            }
-            if (!fullState || typeof fullState !== 'object') {
-              fullState = {};
-            }
-            if (!fullState.salahLog && data.salahLog) fullState.salahLog = data.salahLog;
-            if (!fullState.nawafilLog && data.nawafilLog) fullState.nawafilLog = data.nawafilLog;
-            if (!fullState.dhikrLog && data.dhikrLog) fullState.dhikrLog = data.dhikrLog;
-            if (!fullState.morningLog && data.morningLog) fullState.morningLog = data.morningLog;
-            if (!fullState.nightlyLog && data.nightlyLog) fullState.nightlyLog = data.nightlyLog;
-            if (!fullState.quranLog && data.quranLog) fullState.quranLog = data.quranLog;
-            if (!fullState.specialAmalLog && data.specialAmalLog) fullState.specialAmalLog = data.specialAmalLog;
-
-            userList.push({
-              uid,
-              name: data.name || 'ব্যবহারকারী',
-              fullState,
-              pointsHistory: data.pointsHistory || {},
-              stats: data.stats || {}
-            });
-          });
+          const userList = parseUsersSnapshot(snapshot);
           callback(userList);
-        }, 500);
+        }, 15000);
       },
       (error) => {
         console.warn("subscribeCommunityUsers error:", error);

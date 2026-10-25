@@ -403,6 +403,49 @@ export class IbadatRepository {
 
   private readonly STORAGE_KEY = 'ibadat_tracker_state_v3';
   private communityUsers: CommunityUserState[] = [];
+  private cachedState: Record<string, any> | null = null;
+  private pointsCache = new Map<string, number>();
+  private appStatsCache = new Map<string, AppStats>();
+  private taskStatsCache = new Map<string, TaskStats>();
+
+  // Cached date arrays to prevent thousands of new Date() allocations
+  private static cachedDatesDayKey = '';
+  private static cachedLast7Days: string[] = [];
+  private static cachedLast30Days: string[] = [];
+
+  private static getCachedDateArrays(): { last7: string[]; last30: string[]; todayIso: string } {
+    const today = new Date();
+    const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    if (IbadatRepository.cachedDatesDayKey === todayIso) {
+      return {
+        last7: IbadatRepository.cachedLast7Days,
+        last30: IbadatRepository.cachedLast30Days,
+        todayIso
+      };
+    }
+    const last7: string[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      last7.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+    }
+    const last30: string[] = [];
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      last30.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+    }
+    IbadatRepository.cachedDatesDayKey = todayIso;
+    IbadatRepository.cachedLast7Days = last7;
+    IbadatRepository.cachedLast30Days = last30;
+    return { last7, last30, todayIso };
+  }
+
+  public invalidateCaches(): void {
+    this.pointsCache.clear();
+    this.appStatsCache.clear();
+    this.taskStatsCache.clear();
+  }
 
   constructor() {
     try {
@@ -416,8 +459,11 @@ export class IbadatRepository {
   setCommunityUsers(users: CommunityUserState[]): void {
     if (!Array.isArray(users)) return;
     this.communityUsers = users;
+    this.taskStatsCache.clear();
     try {
-      localStorage.setItem('cached_community_users', JSON.stringify(users));
+      if (users.length <= 50) {
+        localStorage.setItem('cached_community_users', JSON.stringify(users));
+      }
     } catch {}
   }
 
@@ -425,8 +471,11 @@ export class IbadatRepository {
     return this.communityUsers;
   }
 
-  // Read full appState object matching user schema
+  // Read full appState object matching user schema (cached in memory)
   private getAppState(): Record<string, any> {
+    if (this.cachedState) {
+      return this.cachedState;
+    }
     const raw = localStorage.getItem(this.STORAGE_KEY);
     if (!raw) {
       return {
@@ -475,9 +524,11 @@ export class IbadatRepository {
       if (!state.generalReminder) state.generalReminder = { enabled: true, interval: 10 };
       if (!state.lifetimeStartDate) state.lifetimeStartDate = new Date().toISOString().split('T')[0];
       if (!state.pointsHistory) state.pointsHistory = {};
+      this.cachedState = state;
       return state;
     } catch {
-      return {};
+      this.cachedState = {};
+      return this.cachedState;
     }
   }
 
@@ -573,7 +624,13 @@ export class IbadatRepository {
   }
 
   private saveAppState(state: Record<string, any>): void {
-    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
+    this.cachedState = state;
+    this.invalidateCaches();
+    try {
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
+    } catch (e) {
+      console.warn("Storage write error:", e);
+    }
   }
 
   // Date helpers
@@ -774,8 +831,12 @@ export class IbadatRepository {
     return false;
   }
 
-  // Points Calculation matching the user's logic exactly
+  // Points Calculation matching the user's logic exactly (cached)
   calculatePoints(dateKey: string): number {
+    if (this.pointsCache.has(dateKey)) {
+      return this.pointsCache.get(dateKey)!;
+    }
+
     let points = 0;
     const salah = this.getLog("salah", dateKey);
     const nawafil = this.getLog("nawafil", dateKey);
@@ -831,8 +892,8 @@ export class IbadatRepository {
     });
 
     // If this date has logged task entries, the checklist sum is the definitive live points
-    // (allowing points to accurately increase when checked and decrease when unchecked)
     if (this.hasLogsForDate(dateKey)) {
+      this.pointsCache.set(dateKey, points);
       return points;
     }
 
@@ -846,7 +907,9 @@ export class IbadatRepository {
       if (altPoints > historyPoints) historyPoints = altPoints;
     }
 
-    return points > 0 ? points : historyPoints;
+    const finalPts = points > 0 ? points : historyPoints;
+    this.pointsCache.set(dateKey, finalPts);
+    return finalPts;
   }
 
   getLifetimeDays(): number {
@@ -886,66 +949,51 @@ export class IbadatRepository {
     let week = 0;
     let month = 0;
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const { last7, last30, todayIso } = IbadatRepository.getCachedDateArrays();
 
-    // 1. Weekly: exactly the last 7 calendar days (today and 6 days prior)
+    // 1. Weekly: exactly the last 7 calendar days
     for (let i = 0; i < 7; i++) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      const iso = this.formatIsoDate(d);
-      const alt = d.toDateString();
-
-      const done = Boolean(logMap[iso]?.[taskKey] || logMap[alt]?.[taskKey]);
-      if (done) {
+      const iso = last7[i];
+      if (logMap[iso]?.[taskKey]) {
         week++;
       }
     }
 
-    // 2. Monthly: exactly the last 30 calendar days (today and 29 days prior)
+    // 2. Monthly: exactly the last 30 calendar days
     for (let i = 0; i < 30; i++) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      const iso = this.formatIsoDate(d);
-      const alt = d.toDateString();
-
-      const done = Boolean(logMap[iso]?.[taskKey] || logMap[alt]?.[taskKey]);
-      if (done) {
+      const iso = last30[i];
+      if (logMap[iso]?.[taskKey]) {
         month++;
       }
     }
 
-    // 3. Lifetime: unique calendar days from lifetimeStartDate (or account creation) up to today
+    // 3. Lifetime: unique calendar days from lifetimeStartDate up to today
     const startStr = customStartStr || userFullState.lifetimeStartDate || this.getLifetimeStartDate();
-    const todayIso = this.formatIsoDate(today);
-    const seenDoneDates = new Set<string>();
+    let lifetime = 0;
 
     if (logMap && typeof logMap === 'object') {
-      Object.entries(logMap).forEach(([dateStr, dayLog]: [string, any]) => {
-        if (dayLog && typeof dayLog === 'object' && dayLog[taskKey]) {
-          let iso = '';
-          if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-            iso = dateStr;
-          } else {
-            try {
-              const d = new Date(dateStr);
-              if (!isNaN(d.getTime())) iso = this.formatIsoDate(d);
-            } catch {}
-          }
-          if (iso && iso >= startStr && iso <= todayIso) {
-            seenDoneDates.add(iso);
+      const dates = Object.keys(logMap);
+      for (let i = 0; i < dates.length; i++) {
+        const dateStr = dates[i];
+        const dayLog = logMap[dateStr];
+        if (dayLog && dayLog[taskKey]) {
+          if (dateStr >= startStr && dateStr <= todayIso) {
+            lifetime++;
           }
         }
-      });
+      }
     }
-
-    const lifetime = seenDoneDates.size;
 
     return { week, month, lifetime };
   }
 
   getTaskCompletionStats(category: string, taskKey: string): TaskStats {
-    // Current user's own counts for this specific deed (independent of account creation date)
+    const cacheKey = `${category}__${taskKey}`;
+    if (this.taskStatsCache.has(cacheKey)) {
+      return this.taskStatsCache.get(cacheKey)!;
+    }
+
+    // Current user's own counts for this specific deed
     const myCounts = this.getUserDeedCounts(this.getAppState(), category, taskKey);
     const weekCount = myCounts.week;
     const monthCount = myCounts.month;
@@ -958,30 +1006,22 @@ export class IbadatRepository {
     const otherLifetimeScores: number[] = [];
 
     if (this.communityUsers && this.communityUsers.length > 0) {
-      this.communityUsers.forEach((u) => {
-        if (currentUid && u.uid === currentUid) return;
+      for (let i = 0; i < this.communityUsers.length; i++) {
+        const u = this.communityUsers[i];
+        if (currentUid && u.uid === currentUid) continue;
         const counts = this.getUserDeedCounts(u.fullState, category, taskKey);
         otherWeekScores.push(counts.week);
         otherMonthScores.push(counts.month);
         otherLifetimeScores.push(counts.lifetime);
-      });
+      }
     }
 
-    // Dense tied rank calculation matching user specification:
-    // - Highest performers with identical counts share the exact same rank (e.g. 7/7 users all get #1)
-    // - Down through ranks 1, 2, 3 multiple users can share the same rank (e.g. all with 6 get #2, all with 5 get #3)
-    // - After top 3, ranks continue sequentially (#4, #5, #6...)
-    // - If observance count is 0 (has not performed even once), rank is 0 (#0)
     const calcCardRank = (myScore: number, otherScores: number[]): number => {
-      // If user has done 0 days (not performed even once), their rank is 0
       if (myScore === 0) {
         return 0;
       }
-
       const allScores = [myScore, ...otherScores];
-      // Only users who have actually performed the deed (> 0) compete for ranks
       const uniqueDescending = Array.from(new Set(allScores.filter((s) => s > 0))).sort((a, b) => b - a);
-
       const idx = uniqueDescending.indexOf(myScore);
       return idx !== -1 ? idx + 1 : 1;
     };
@@ -990,10 +1030,9 @@ export class IbadatRepository {
     const monthRank = calcCardRank(monthCount, otherMonthScores);
     const lifetimeRank = calcCardRank(lifetimeCount, otherLifetimeScores);
 
-    // Lifetime days strictly calculated from lifetimeStartDate to today
     const totalLifetimeDays = this.getLifetimeDays();
 
-    return {
+    const result: TaskStats = {
       week: weekCount,
       month: monthCount,
       lifetime: lifetimeCount,
@@ -1004,9 +1043,16 @@ export class IbadatRepository {
       monthRank,
       lifetimeRank
     };
+
+    this.taskStatsCache.set(cacheKey, result);
+    return result;
   }
 
   getAppStats(selectedDateKey: string): AppStats {
+    if (this.appStatsCache.has(selectedDateKey)) {
+      return this.appStatsCache.get(selectedDateKey)!;
+    }
+
     const today = new Date();
     const selectedPoints = this.calculatePoints(selectedDateKey);
 
@@ -1021,7 +1067,7 @@ export class IbadatRepository {
 
     for (let i = 0; i < 30; i++) {
       const d = new Date(today);
-      d.setDate(d.getDate() - i);
+      d.setDate(today.getDate() - i);
       const key = this.formatIsoDate(d);
       const pts = this.calculatePoints(key);
 
@@ -1062,19 +1108,19 @@ export class IbadatRepository {
       Object.keys(state.pointsHistory).forEach((d) => allLoggedDates.add(d));
     }
 
-    // Always check back at least 365 days or lifetime days
+    // Always check back at least 30 days or lifetime days
     const totalDays = this.getLifetimeDays();
-    const maxLife = Math.max(30, Math.min(totalDays, 365));
+    const maxLife = Math.max(30, Math.min(totalDays, 180));
     for (let i = 0; i < maxLife; i++) {
       const d = new Date(today);
-      d.setDate(d.getDate() - i);
+      d.setDate(today.getDate() - i);
       allLoggedDates.add(this.formatIsoDate(d));
     }
 
     let totalLifetime = 0;
     const todayIso = this.formatIsoDate(today);
 
-    // Normalize all dates to canonical YYYY-MM-DD to avoid double counting alternate formats
+    // Normalize all dates to canonical YYYY-MM-DD
     const normalizedDates = new Set<string>();
     allLoggedDates.forEach((raw) => {
       if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
@@ -1095,7 +1141,6 @@ export class IbadatRepository {
       }
     });
 
-    // Fallback only if there are absolutely no recorded dates yet (e.g. fresh load of cloud account)
     if (totalLifetime === 0 && normalizedDates.size === 0) {
       if (state.stats?.totalLifetimePoints && Number(state.stats.totalLifetimePoints) > 0) {
         totalLifetime = Number(state.stats.totalLifetimePoints);
@@ -1104,13 +1149,15 @@ export class IbadatRepository {
       }
     }
 
-    // Keep state.stats synchronized with the live totalLifetime
+    // Only update state.stats if values actually changed to avoid redundant writes
     if (!state.stats) state.stats = {};
-    state.stats.totalLifetimePoints = totalLifetime;
-    state.stats.totalPoints = totalLifetime;
-    this.saveAppState(state);
+    if (state.stats.totalLifetimePoints !== totalLifetime || state.stats.totalPoints !== totalLifetime) {
+      state.stats.totalLifetimePoints = totalLifetime;
+      state.stats.totalPoints = totalLifetime;
+      this.saveAppState(state);
+    }
 
-    return {
+    const result: AppStats = {
       todayPoints,
       selectedDayPoints: selectedPoints,
       yesterdayPoints,
@@ -1120,6 +1167,9 @@ export class IbadatRepository {
       fardCompleted7Days: fardCompleted7,
       totalLifetimePoints: totalLifetime
     };
+
+    this.appStatsCache.set(selectedDateKey, result);
+    return result;
   }
 
   getYesterdayChampion(): ChampionInfo | null {
@@ -1270,6 +1320,8 @@ export class IbadatRepository {
   }
 
   resetAllData(): void {
+    this.cachedState = null;
+    this.invalidateCaches();
     localStorage.removeItem(this.STORAGE_KEY);
     localStorage.removeItem('last_reminder_check_day');
   }
